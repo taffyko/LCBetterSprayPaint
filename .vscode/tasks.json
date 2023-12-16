@@ -1,0 +1,24 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "build-dev",
+			"command": "powershell",
+			"type": "process",
+			"args": [
+				"-NoProfile",
+				"-File",
+				"${workspaceFolder}\\scripts\\build.ps1"
+			],
+			"problemMatcher": "$msCompile",
+			"group": "build"
+		},
+		{
+			"label": "run",
+			"isBackground": true,
+			"type": "process",
+			"command": "${workspaceFolder}\\..\\..\\Lethal Company.exe",
+			"problemMatcher": []
+		}
+	]
+}
