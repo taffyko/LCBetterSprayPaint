@@ -1,2 +1,2 @@
 Set-Location "$PSScriptRoot\.."
-& "..\..\Lethal Company.exe"
+& "..\..\Lethal Company.exe" --lan $args

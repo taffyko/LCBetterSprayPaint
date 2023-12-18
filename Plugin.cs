@@ -20,7 +20,7 @@ namespace BetterSprayPaint;
 public class Plugin : BaseUnityPlugin {
     public const string modGUID = "taffyko.BetterSprayPaint";
     public const string modName = "BetterSprayPaint";
-    public const string modVersion = "1.0.0";
+    public const string modVersion = "1.0.1";
     
     private readonly Harmony harmony = new Harmony(modGUID);
     public static ManualLogSource? log;
@@ -46,7 +46,7 @@ public class Plugin : BaseUnityPlugin {
 internal class Patches {
     [HarmonyPostfix]
     [HarmonyPatch(typeof(SprayPaintItem), "LateUpdate")]
-    public static void Update(SprayPaintItem __instance, ref float ___sprayCanTank, ref int ___sprayPaintMask) {
+    public static void Update(SprayPaintItem __instance, ref float ___sprayCanTank, ref float ___sprayCanShakeMeter) {
         reload(__instance);
         // Spray more, forever, faster
         ___sprayCanTank = 1f;
@@ -54,6 +54,12 @@ internal class Patches {
         __instance.sprayIntervalSpeed = 0.01f;
 
         if (__instance.playerHeldBy != null) {
+            if (!__instance.playerHeldBy.IsOwner) {
+                // If someone else is holding the can, never let the shake meter fall below 50%
+                // This fixes a de-sync where some clients think someone else's shake meter is empty
+                // and fail to replicate their spray paint events because of it
+                ___sprayCanShakeMeter = Math.Max(0.5f, ___sprayCanShakeMeter);
+            }
             // Cancel can shake animation early
             var anim = __instance.playerHeldBy.playerBodyAnimator;
             foreach (var clipInfo in anim.GetCurrentAnimatorClipInfo(2)) {
@@ -126,7 +132,7 @@ internal class Patches {
                         writer.WriteValueSafe(sprayRot);
                         msgManager.SendNamedMessageToAll(msgErase(__instance), writer);
                     }
-                    if (__instance.playerHeldBy != null && __instance.playerHeldBy.playerClientId != NetworkManager.Singleton.LocalClientId) {
+                    if (__instance.playerHeldBy != null && !__instance.playerHeldBy.IsOwner) {
                         var result = AddSprayPaintLocal(__instance, sprayPos, sprayRot);
                     }
                 });

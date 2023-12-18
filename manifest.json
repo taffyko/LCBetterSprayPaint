@@ -1,6 +1,6 @@
 {
 	"name": "BetterSprayPaint",
-	"version_number": "1.0.0",
+	"version_number": "1.0.1",
 	"website_url": "https://github.com/taffyko/LCBetterSprayPaint",
 	"description": "Infinite spray paint, significantly more responsive and reliable painting, longer range, and an erase feature",
 	"dependencies": [
