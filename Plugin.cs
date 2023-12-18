@@ -9,6 +9,7 @@ using UnityEngine;
 using System;
 using UnityEngine.InputSystem;
 using System.Linq;
+using BepInEx.Configuration;
 using Unity.Netcode;
 using Unity.Collections;
 using UnityEngine.UIElements.StyleSheets;
@@ -25,9 +26,24 @@ public class Plugin : BaseUnityPlugin {
     private readonly Harmony harmony = new Harmony(modGUID);
     public static ManualLogSource? log;
 
+    public static ConfigEntry<bool> configInfiniteTank;
+    public static ConfigEntry<float> configVolume;
+
     private void Awake() {
         log = BepInEx.Logging.Logger.CreateLogSource(modName);
         log.LogInfo($"Loading {modGUID}");
+
+        configInfiniteTank = Config.Bind(
+            "General",
+            "Infinite Tank",
+            true,
+            "If true the spray can has infinite uses.");
+
+        configVolume = Config.Bind(
+            "General",
+            "Volume",
+            .3f,
+            "Volume of spray paint sound effects.");
 
         // Plugin startup logic
         harmony.PatchAll(Assembly.GetExecutingAssembly());
@@ -44,12 +60,20 @@ public class Plugin : BaseUnityPlugin {
 
 [HarmonyPatch]
 internal class Patches {
+
+    [HarmonyPostfix]
+    [HarmonyPatch(typeof(SprayPaintItem), "Start")]
+    public static void Start(SprayPaintItem __instance, ref AudioSource ___sprayAudio)
+    {
+        ___sprayAudio.volume = Plugin.configVolume.Value;
+    }
+    
     [HarmonyPostfix]
     [HarmonyPatch(typeof(SprayPaintItem), "LateUpdate")]
     public static void Update(SprayPaintItem __instance, ref float ___sprayCanTank, ref int ___sprayPaintMask) {
         reload(__instance);
         // Spray more, forever, faster
-        ___sprayCanTank = 1f;
+        if(Plugin.configInfiniteTank.Value) ___sprayCanTank = 1f;
         __instance.maxSprayPaintDecals = 4000;
         __instance.sprayIntervalSpeed = 0.01f;
 
