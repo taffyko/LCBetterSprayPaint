@@ -12,16 +12,16 @@ using System.Linq;
 using BepInEx.Configuration;
 using Unity.Netcode;
 using Unity.Collections;
-using UnityEngine.UIElements.StyleSheets;
 using UnityEngine.Rendering.HighDefinition;
+using GameNetcodeStuff;
 
 namespace BetterSprayPaint;
 
 [BepInPlugin(modGUID, modName, modVersion)]
 public class Plugin : BaseUnityPlugin {
     public const string modGUID = "taffyko.BetterSprayPaint";
-    public const string modName = "BetterSprayPaint";
-    public const string modVersion = "1.0.0";
+    public const string modName = PluginInfo.PLUGIN_NAME;
+    public const string modVersion = PluginInfo.PLUGIN_VERSION;
     
     private readonly Harmony harmony = new Harmony(modGUID);
     public static ManualLogSource? log;
@@ -53,7 +53,17 @@ public class Plugin : BaseUnityPlugin {
         #if DEBUG
         log?.LogInfo($"Unloading {modGUID}");
         harmony?.UnpatchSelf();
+        foreach (var instance in UnityEngine.Object.FindObjectsOfType<SprayPaintItem>()) {
+            Patches.unload(instance);
+        }
         #endif
+    }
+}
+
+public class SprayPaintItemExtraBehaviour: MonoBehaviour {
+    public void OnDestroy() {
+        TryGetComponent<SprayPaintItem>(out var instance);
+        if (instance != null) Patches.unload(instance);
     }
 }
 
@@ -68,9 +78,13 @@ internal class Patches {
         ___sprayAudio.volume = Plugin.configVolume.Value;
     }
     
+    public static bool IsLocalPlayer(PlayerControllerB player) {
+        return player == StartOfRound.Instance?.localPlayerController;
+    }
+    
     [HarmonyPostfix]
     [HarmonyPatch(typeof(SprayPaintItem), "LateUpdate")]
-    public static void Update(SprayPaintItem __instance, ref float ___sprayCanTank, ref int ___sprayPaintMask) {
+    public static void Update(SprayPaintItem __instance, ref float ___sprayCanTank, ref float ___sprayCanShakeMeter) {
         reload(__instance);
         // Spray more, forever, faster
         if(Plugin.configInfiniteTank.Value) ___sprayCanTank = 1f;
@@ -78,6 +92,12 @@ internal class Patches {
         __instance.sprayIntervalSpeed = 0.01f;
 
         if (__instance.playerHeldBy != null) {
+            if (!IsLocalPlayer(__instance.playerHeldBy)) {
+                // If someone else is holding the can, never let the shake meter fall below 50%
+                // This fixes a de-sync where some clients think someone else's shake meter is empty
+                // and fail to replicate their spray paint events because of it
+                ___sprayCanShakeMeter = Math.Max(0.5f, ___sprayCanShakeMeter);
+            }
             // Cancel can shake animation early
             var anim = __instance.playerHeldBy.playerBodyAnimator;
             foreach (var clipInfo in anim.GetCurrentAnimatorClipInfo(2)) {
@@ -96,6 +116,7 @@ internal class Patches {
         public Material? sprayEraseParticleMaterial;
         public int sprayPaintMask;
         public bool handlerRegistered;
+        public SprayPaintItemExtraBehaviour? extraBehaviour;
     }
 
     public static InputAction? tertiaryUseAction;
@@ -115,6 +136,11 @@ internal class Patches {
         var f = fields[__instance];
         if (tertiaryUseAction == null) {
             tertiaryUseAction = IngamePlayerSettings.Instance.playerInput.actions.FindAction("ItemTertiaryUse", false);
+        }
+        if (f.extraBehaviour == null) {
+            if (!__instance.TryGetComponent<SprayPaintItemExtraBehaviour>(out f.extraBehaviour)) {
+                f.extraBehaviour = __instance.gameObject.AddComponent<SprayPaintItemExtraBehaviour>();
+            }
         }
         if (f.sprayPaintMask == 0) {
             f.sprayPaintMask = Traverse.Create(__instance).Field("sprayPaintMask").GetValue<int>();
@@ -148,9 +174,9 @@ internal class Patches {
                         var writer = new FastBufferWriter(100, Allocator.Temp);
                         writer.WriteValueSafe(sprayPos);
                         writer.WriteValueSafe(sprayRot);
-                        msgManager.SendNamedMessageToAll(msgErase(__instance), writer);
+                        msgManager.SendNamedMessageToAll(msgSpray(__instance), writer);
                     }
-                    if (__instance.playerHeldBy != null && __instance.playerHeldBy.playerClientId != NetworkManager.Singleton.LocalClientId) {
+                    if (__instance.playerHeldBy != null && !IsLocalPlayer(__instance.playerHeldBy)) {
                         var result = AddSprayPaintLocal(__instance, sprayPos, sprayRot);
                     }
                 });
@@ -158,6 +184,16 @@ internal class Patches {
             }
         }
     }
+
+    public static void unload(SprayPaintItem __instance) {
+        var msgManager = __instance.NetworkManager?.CustomMessagingManager;
+        if (msgManager != null) {
+            msgManager.UnregisterNamedMessageHandler(msgErase(__instance));
+            msgManager.UnregisterNamedMessageHandler(msgSpray(__instance));
+        }
+        fields.Remove(__instance);
+    }
+
 
     public static void EraseSprayPaintAtPoint(SprayPaintItem __instance, Vector3 pos) {
         foreach (GameObject decal in SprayPaintItem.sprayPaintDecals) {
