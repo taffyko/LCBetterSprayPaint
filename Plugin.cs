@@ -26,24 +26,30 @@ public class Plugin : BaseUnityPlugin {
     private readonly Harmony harmony = new Harmony(modGUID);
     public static ManualLogSource? log;
 
-    public static ConfigEntry<bool> configInfiniteTank;
-    public static ConfigEntry<float> configVolume;
+    private static bool? infiniteTank;
+    public static bool InfiniteTank => infiniteTank ?? true;
+    private static bool? allowErasing;
+    public static bool AllowErasing => allowErasing ?? true;
+    private static float? volume;
+    public static float Volume => volume ?? .2f;
 
     private void Awake() {
         log = BepInEx.Logging.Logger.CreateLogSource(modName);
         log.LogInfo($"Loading {modGUID}");
 
-        configInfiniteTank = Config.Bind(
-            "General",
-            "Infinite Tank",
-            true,
-            "If true the spray can has infinite uses.");
-
-        configVolume = Config.Bind(
-            "General",
-            "Volume",
-            .3f,
-            "Volume of spray paint sound effects.");
+        // See: https://github.com/taffyko/LCNiceChat/issues/3
+        if (bool.TryParse(
+            Config.Bind<string?>("General", "AllowErasing", null, "(default: true) If true, holding tertiary action (default: E) while spraying allows you to erase. The host's setting applies to everyone in the lobby.").Value,
+            out var _allowErasing
+        )) { allowErasing = _allowErasing; }
+        if (bool.TryParse(
+            Config.Bind<string?>("General", "InfiniteTank", null, "(default: true) If true, the spray can has infinite uses. The host's setting applies to everyone in the lobby.").Value,
+            out var _infiniteTank
+        )) { infiniteTank = _infiniteTank; }
+        if (float.TryParse(
+            Config.Bind<string?>("General", "Volume", null, "(default: 0.2) Volume of spray paint sound effects.").Value,
+            out var _volume
+        )) { volume = _volume; }
 
         // Plugin startup logic
         harmony.PatchAll(Assembly.GetExecutingAssembly());
@@ -52,10 +58,11 @@ public class Plugin : BaseUnityPlugin {
     private void OnDestroy() {
         #if DEBUG
         log?.LogInfo($"Unloading {modGUID}");
-        harmony?.UnpatchSelf();
         foreach (var instance in UnityEngine.Object.FindObjectsOfType<SprayPaintItem>()) {
             Patches.unload(instance);
         }
+        harmony?.UnpatchSelf();
+        Patches.sessionData = null;
         #endif
     }
 }
@@ -71,25 +78,94 @@ public class SprayPaintItemExtraBehaviour: MonoBehaviour {
 [HarmonyPatch]
 internal class Patches {
 
-    [HarmonyPostfix]
-    [HarmonyPatch(typeof(SprayPaintItem), "Start")]
-    public static void Start(SprayPaintItem __instance, ref AudioSource ___sprayAudio)
-    {
-        ___sprayAudio.volume = Plugin.configVolume.Value;
+
+    public class SessionData {
+        public bool handlerRegistered;
+        public bool? allowErasing;
+        public bool? infiniteTank;
     }
-    
+
+    const string msgConfigAllowErasing = $"{Plugin.modGUID}.ConfigAllowErasing";
+    const string msgConfigInfiniteTank = $"{Plugin.modGUID}.ConfigInfiniteTank";
+    public static SessionData? sessionData = null;
+    [HarmonyPostfix]
+    [HarmonyPatch(typeof(PlayerControllerB), "Update")]
+    public static void PlayerUpdate(PlayerControllerB __instance) {
+        if (IsLocalPlayer(__instance)) {
+            sessionData = new SessionData();
+            if (__instance.NetworkManager.IsConnectedClient || __instance.NetworkManager.IsServer) {
+                var msgManager = __instance.NetworkManager.CustomMessagingManager;
+                if (!sessionData.handlerRegistered) {
+                    msgManager.RegisterNamedMessageHandler(msgConfigInfiniteTank, (ulong clientId, FastBufferReader reader) => {
+                        if (__instance.NetworkManager.IsServer) {
+                            var writer = new FastBufferWriter(10, Allocator.Temp);
+                            writer.WriteValue(Plugin.InfiniteTank);
+                            msgManager.SendNamedMessage(msgConfigInfiniteTank, clientId, writer);
+                        } else {
+                            reader.ReadValue(out bool infiniteTank);
+                            sessionData.infiniteTank = infiniteTank;
+                        }
+                    });
+                    msgManager.RegisterNamedMessageHandler(msgConfigAllowErasing, (ulong clientId, FastBufferReader reader) => {
+                        if (__instance.NetworkManager.IsServer) {
+                            var writer = new FastBufferWriter(10, Allocator.Temp);
+                            writer.WriteValue(Plugin.AllowErasing);
+                            msgManager.SendNamedMessage(msgConfigAllowErasing, clientId, writer);
+                        } else {
+                            reader.ReadValue(out bool allowErasing);
+                            sessionData.allowErasing = allowErasing;
+                        }
+                    });
+                    sessionData.handlerRegistered = true;
+                }
+                if (sessionData.infiniteTank == null) {
+                    if (!__instance.NetworkManager.IsServer) {
+                        var writer = new FastBufferWriter(0, Allocator.Temp);
+                        msgManager.SendNamedMessage(msgConfigInfiniteTank, NetworkManager.ServerClientId, writer);
+                    }
+                    sessionData.infiniteTank = Plugin.InfiniteTank; // assume default until response
+                }
+                if (sessionData.allowErasing == null) {
+                    if (!__instance.NetworkManager.IsServer) {
+                        var writer = new FastBufferWriter(0, Allocator.Temp);
+                        msgManager.SendNamedMessage(msgConfigAllowErasing, NetworkManager.ServerClientId, writer);
+                    }
+                    sessionData.allowErasing = Plugin.AllowErasing; // assume default until response
+                }
+            } else {
+                sessionData = null;
+            }
+        }
+    }
+
+    [HarmonyPostfix]
+    [HarmonyPatch(typeof(PlayerControllerB), "OnDestroy")]
+    public static void PlayerDestroy(PlayerControllerB __instance) {
+        if (IsLocalPlayer(__instance)) {
+            sessionData = null;
+        }
+        var msgManager = __instance.NetworkManager?.CustomMessagingManager;
+        msgManager?.UnregisterNamedMessageHandler(msgConfigInfiniteTank);
+        msgManager?.UnregisterNamedMessageHandler(msgConfigAllowErasing);
+
+    }
+
     public static bool IsLocalPlayer(PlayerControllerB player) {
         return player == StartOfRound.Instance?.localPlayerController;
     }
+
+    public static bool InfiniteTank => sessionData?.infiniteTank ?? Plugin.InfiniteTank;
+    public static bool AllowErasing => sessionData?.allowErasing ?? Plugin.AllowErasing;
     
     [HarmonyPostfix]
     [HarmonyPatch(typeof(SprayPaintItem), "LateUpdate")]
-    public static void Update(SprayPaintItem __instance, ref float ___sprayCanTank, ref float ___sprayCanShakeMeter) {
+    public static void Update(SprayPaintItem __instance, ref float ___sprayCanTank, ref float ___sprayCanShakeMeter, ref AudioSource ___sprayAudio) {
         reload(__instance);
         // Spray more, forever, faster
-        if(Plugin.configInfiniteTank.Value) ___sprayCanTank = 1f;
+        if (InfiniteTank) ___sprayCanTank = 1f;
         __instance.maxSprayPaintDecals = 4000;
         __instance.sprayIntervalSpeed = 0.01f;
+        ___sprayAudio.volume = Plugin.Volume;
 
         if (__instance.playerHeldBy != null) {
             if (!IsLocalPlayer(__instance.playerHeldBy)) {
@@ -158,14 +234,16 @@ internal class Patches {
             if (!f.handlerRegistered) {
                 var msgManager = __instance.NetworkManager.CustomMessagingManager;
                 msgManager.RegisterNamedMessageHandler(msgErase(__instance), (ulong clientId, FastBufferReader reader) => {
-                    reader.ReadValueSafe(out Vector3 pos);
+                    if (AllowErasing) {
+                        reader.ReadValueSafe(out Vector3 pos);
 
-                    if (__instance.NetworkManager.IsServer && clientId != NetworkManager.ServerClientId) {
-                        var writer = new FastBufferWriter(100, Allocator.Temp);
-                        writer.WriteValueSafe(pos);
-                        msgManager.SendNamedMessageToAll(msgErase(__instance), writer);
+                        if (__instance.NetworkManager.IsServer && clientId != NetworkManager.ServerClientId) {
+                            var writer = new FastBufferWriter(100, Allocator.Temp);
+                            writer.WriteValueSafe(pos);
+                            msgManager.SendNamedMessageToAll(msgErase(__instance), writer);
+                        }
+                        EraseSprayPaintAtPoint(__instance, pos);
                     }
-                    EraseSprayPaintAtPoint(__instance, pos);
                 });
                 msgManager.RegisterNamedMessageHandler(msgSpray(__instance), (ulong clientId, FastBufferReader reader) => {
                     reader.ReadValueSafe(out Vector3 sprayPos);
@@ -224,7 +302,7 @@ internal class Patches {
         var sprayPos = GameNetworkManager.Instance.localPlayerController.gameplayCamera.transform.position;
         var sprayRot = GameNetworkManager.Instance.localPlayerController.gameplayCamera.transform.forward;
 
-        if (tertiaryUseAction != null && tertiaryUseAction.IsPressed()) {
+        if (AllowErasing && tertiaryUseAction != null && tertiaryUseAction.IsPressed()) {
             // "Erase" mode
             // Particles
             __instance.sprayParticle.GetComponent<ParticleSystemRenderer>().material = f.sprayEraseParticleMaterial;
