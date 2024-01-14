@@ -1,14 +1,16 @@
 $ErrorActionPreference = 'Stop'
 Set-Location "$PSScriptRoot\.."
-dotnet build -c Release
+& .\scripts\build-release.ps1
 
-$info = (Get-Content manifest.json | ConvertFrom-Json)
-$version = $info.version_number
-$name = $info.name
+[xml]$csproj = Get-Content .\*.csproj
+$dllName = $csproj.Project.PropertyGroup.AssemblyName
+$name = $csproj.Project.PropertyGroup.Product
+$version = $csproj.Project.PropertyGroup.Version
 
 if (Test-Path BepInEx) { Remove-Item -Recurse BepInEx }
 mkdir -Force BepInEx\plugins
-Copy-Item "bin/Release/netstandard2.1/$name.dll" "BepInEx/plugins"
+Copy-Item "bin/Release/netstandard2.1/$dllName.dll" "BepInEx/plugins"
+Copy-Item "bin/Release/netstandard2.1/$dllName.pdb" "BepInEx/plugins"
 
 Compress-Archive -Force -Path @(
 	"manifest.json",

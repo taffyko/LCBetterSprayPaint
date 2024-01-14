@@ -12,13 +12,6 @@
 			],
 			"problemMatcher": "$msCompile",
 			"group": "build"
-		},
-		{
-			"label": "run",
-			"isBackground": true,
-			"type": "process",
-			"command": "${workspaceFolder}\\..\\..\\Lethal Company.exe",
-			"problemMatcher": []
 		}
 	]
 }

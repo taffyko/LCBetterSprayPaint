@@ -1,8 +1,8 @@
 {
 	"name": "BetterSprayPaint",
-	"version_number": "1.1.0",
+	"version_number": "2.0.0",
 	"website_url": "https://github.com/taffyko/LCBetterSprayPaint",
-	"description": "Infinite spray paint, significantly more responsive and reliable painting, longer range, quieter sounds, and an erase feature",
+	"description": "Significantly more responsive and reliable painting, many bug-fixes, infinite spray paint, longer range, quieter sounds. Adds an erase feature, as well as the ability to control color and brush size. All configurable.",
 	"dependencies": [
 		"BepInEx-BepInExPack-5.4.2100"
 	]
