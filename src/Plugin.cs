@@ -16,7 +16,7 @@ public partial class Plugin : BaseUnityPlugin {
     public const string modName = PluginInfo.PLUGIN_NAME;
     public const string modVersion = PluginInfo.PLUGIN_VERSION;
     
-    internal readonly Harmony harmony = new Harmony(modGUID);
+    internal static Harmony harmony = new Harmony(modGUID);
     internal static ManualLogSource log;
 
     internal static List<Action> cleanupActions = new List<Action>();

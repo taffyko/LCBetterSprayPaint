@@ -9,5 +9,5 @@ if ($?) {
 	Remove-Item "..\..\BepInEx\scripts\$name.dll" -ErrorAction SilentlyContinue
 	Remove-Item "..\..\BepInEx\scripts\$name.pdb" -ErrorAction SilentlyContinue
 	$cfg = "..\..\BepInEx\config\BepInEx.cfg"
-	(Get-Content $cfg) -replace "^HideManagerGameObject = true","HideManagerGameObject = false" | Set-Content $cfg
+	(Get-Content $cfg) -replace "^HideManagerGameObject = false","HideManagerGameObject = true" | Set-Content $cfg
 }

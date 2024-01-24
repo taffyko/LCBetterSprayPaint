@@ -37,7 +37,7 @@ public class SprayPaintItemExt: NetworkBehaviour {
 
     public float PaintSize {
         set { instance.playerHeldBy.Ext()!.PaintSize = value; }
-        get { return instance.playerHeldBy?.Ext()!.PaintSize ?? 1.0f; }
+        get { return instance.playerHeldBy?.Ext()?.PaintSize ?? 1.0f; }
     }
 
     public NetworkVariable<float> ShakeMeter = new NetworkVariable<float>(1.0f);

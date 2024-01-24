@@ -1,5 +1,7 @@
 
 using GameNetcodeStuff;
+using Unity.Netcode;
+using Unity.Collections;
 using UnityEngine;
 
 namespace BetterSprayPaint;
@@ -20,6 +22,16 @@ public static class Utils {
     }
 
     public static PlayerExt? Ext(this PlayerControllerB? instance) {
-        return instance?.GetComponent<PlayerExt>();
+        if (instance != null && instance.TryGetComponent<PlayerExt>(out var playerExt)) {
+            return playerExt;
+        }
+        return null;
+    }
+
+    public static void SyncWithNetworkObject(this NetworkBehaviour networkBehaviour, NetworkObject? networkObject) {
+        networkObject = networkObject ?? networkBehaviour.NetworkObject;
+        if (!networkObject.ChildNetworkBehaviours.Contains(networkBehaviour))
+            networkObject.ChildNetworkBehaviours.Add(networkBehaviour);
+        networkBehaviour.UpdateNetworkProperties();
     }
 }

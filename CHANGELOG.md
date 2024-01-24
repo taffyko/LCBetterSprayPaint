@@ -1,3 +1,6 @@
+# 2.0.1
+Fixes a major bug
+
 # 2.0.0
 (Targeting v49)
 - Spray paint color is now synchronized between players

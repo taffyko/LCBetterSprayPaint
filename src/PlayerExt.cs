@@ -21,19 +21,14 @@ public class PlayerExt : NetworkBehaviour {
 
     public override void OnNetworkSpawn() {
         base.OnNetworkSpawn();
-        PaintSize = 1.0f;
+        Plugin.log.LogInfo("PlayerExt: OnNetworkSpawn");
     }
-}
 
-
-[HarmonyPatch]
-class PlayerExtPatches {
-    // Modifying prefab object seemingly not sufficient to add behaviour to PlayerControllerB
-    [HarmonyPrefix]
-    [HarmonyPatch(typeof(PlayerControllerB), "Awake")]
-    public static void PlayerControllerBAwake(PlayerControllerB __instance) {
-        if (!__instance.gameObject.TryGetComponent<PlayerExt>(out _)) {
-            __instance.gameObject.AddComponent<PlayerExt>();
+    bool loaded = false;
+    public void LateUpdate() {
+        if (!loaded && SessionData.instance != null) {
+            loaded = true;
+            PaintSize = 1.0f;
         }
     }
 }

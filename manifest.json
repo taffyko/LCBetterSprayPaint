@@ -1,6 +1,6 @@
 {
 	"name": "BetterSprayPaint",
-	"version_number": "2.0.0",
+	"version_number": "2.0.1",
 	"website_url": "https://github.com/taffyko/LCBetterSprayPaint",
 	"description": "Significantly more responsive and reliable painting, many bug-fixes, infinite spray paint, longer range, quieter sounds. Adds an erase feature, as well as the ability to control color and brush size. All configurable.",
 	"dependencies": [
