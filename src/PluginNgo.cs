@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using GameNetcodeStuff;
@@ -26,6 +27,7 @@ public partial class Plugin {
         cleanupActions.Add(() => {
             var instances = (MonoBehaviour[])Resources.FindObjectsOfTypeAll<T>();
             foreach (var instance in instances) {
+                NetworkManager.Singleton.RemoveNetworkPrefab(prefab);
                 Destroy(instance.gameObject);
             }
         });
@@ -38,7 +40,19 @@ public partial class Plugin {
         // Adding new NetworkBehaviour to prefab is viable when the object is instanced from the prefab at runtime
         foreach (var s in Resources.FindObjectsOfTypeAll<TNativeBehaviour>()) {
             if (!s.gameObject.scene.IsValid()) {
+                var networkPrefabs = NetworkManager.Singleton.NetworkConfig.Prefabs;
+                var networkObject = s.gameObject.GetComponent<NetworkObject>();
+                NetworkPrefab networkPrefab = networkPrefabs.m_Prefabs.Find(p => p.SourcePrefabGlobalObjectIdHash == networkObject.GlobalObjectIdHash);
+                foreach (var list in networkPrefabs.NetworkPrefabsLists) {
+                    list.Remove(networkPrefab);
+                }
                 NetworkManager.Singleton.RemoveNetworkPrefab(s.gameObject);
+                if (networkPrefab?.SourcePrefabGlobalObjectIdHash != null) {
+                    networkPrefabs.NetworkPrefabOverrideLinks.Remove(networkPrefab.SourcePrefabGlobalObjectIdHash);
+                }
+                if (networkPrefab?.TargetPrefabGlobalObjectIdHash != null) {
+                    networkPrefabs.OverrideToNetworkPrefab.Remove(networkPrefab.TargetPrefabGlobalObjectIdHash);
+                }
             }
             var component = s.gameObject.AddComponent<TCustomBehaviour>();
             component.SyncWithNetworkObject(s.gameObject.GetComponent<NetworkObject>());
@@ -79,11 +93,10 @@ public partial class Plugin {
             harmony.Patch(method, postfix: hMethod);
         }
     }
-    internal static void BindBehaviourOnAwake(NetworkBehaviour __instance, MethodBase __originalMethod)
-    {
-        var items = BehaviourBindings.Where(obj => obj.native == __originalMethod.DeclaringType);
+    internal static void BindBehaviourOnAwake(NetworkBehaviour __instance, MethodBase __originalMethod) {
+        var type = __instance.GetType();
+        var items = BehaviourBindings.Where(obj => obj.native == __originalMethod.DeclaringType || type == obj.native);
         foreach (var it in items) {
-            Plugin.log.LogInfo($"ITEM: {it}");
             if (!__instance.gameObject.TryGetComponent(it.custom, out _)) {
                 (__instance.gameObject.AddComponent(it.custom) as NetworkBehaviour)!.SyncWithNetworkObject(__instance.gameObject.GetComponent<NetworkObject>());
             }
@@ -149,8 +162,11 @@ public partial class Plugin {
     }
 }
 
+interface INetVar : IDisposable {
+    void Synchronize();
+}
 
-class NetVar<T> : IDisposable where T : IEquatable<T> {
+class NetVar<T> : INetVar where T : IEquatable<T> {
     readonly public NetworkVariable<T> networkVariable;
 
     bool deferPending = true;
@@ -159,53 +175,48 @@ class NetVar<T> : IDisposable where T : IEquatable<T> {
     // Always in sync with networkVariable.Value
     // The only time this will ever hold a different value is when this client is the owner
     // and the value has just been set and not yet made a round-trip back from the server
-    T localValue {
+    private T localValue {
         set {
-            if (isGlued) {
-                setGlued!(value);
-            } else {
-                _localValue = value;
-            }
+            if (isGlued) { setGlued!(value); }
+            _localValue = value;
         }
         get {
-            if (!inControl()) { localValue = networkVariable.Value; }
-            if (isGlued) {
-                return getGlued!();
-            } else {
-                return _localValue;
-            }
+            return _localValue;
         }
     }
 
-    // Default backing field for localValue
-    T _localValue;
+    private T _localValue;
 
-    // Getter/setter for custom backing field for localValue
+    // Getter/setter to synchronize value with an external local variable
     readonly bool isGlued;
     readonly Action<T>? setGlued;
     readonly Func<T>? getGlued;
 
-
+    readonly Func<T, T>? validate;
     readonly Func<bool> inControl;
     readonly Action<T> SetOnServer;
     readonly NetworkVariable<T>.OnValueChangedDelegate? onChange;
     public NetVar(
+        out NetworkVariable<T> networkVariable,
         Action<T> SetOnServer,
         Func<bool> inControl,
         T initialValue = default!,
         NetworkVariable<T>.OnValueChangedDelegate? onChange = null,
         Action<T>? setGlued = null,
-        Func<T>? getGlued = null
+        Func<T>? getGlued = null,
+        Func<T, T>? validate = null
     ) {
         isGlued = setGlued != null && getGlued != null;
         this.setGlued = setGlued;
         this.getGlued = getGlued;
 
+        this.validate = validate;
         this.onChange = onChange;
         this.SetOnServer = SetOnServer;
         this.inControl = inControl;
 
-        networkVariable = new NetworkVariable<T>(initialValue);
+        this.networkVariable = new NetworkVariable<T>(initialValue);
+        networkVariable = this.networkVariable;
         _localValue = initialValue;
         localValue = initialValue;
         deferredValue = initialValue;
@@ -219,6 +230,7 @@ class NetVar<T> : IDisposable where T : IEquatable<T> {
     }
 
     public void ServerSet(T value) {
+        if (validate != null) { value = validate(value); }
         networkVariable.Value = value;
     }
 
@@ -234,6 +246,7 @@ class NetVar<T> : IDisposable where T : IEquatable<T> {
         set {
             if (inControl()) {
                 deferPending = false;
+                if (validate != null) { value = validate(value); }
                 if (!EqualityComparer<T>.Default.Equals(localValue, value)) {
                     T prevValue = localValue;
                     localValue = value;
@@ -262,6 +275,10 @@ class NetVar<T> : IDisposable where T : IEquatable<T> {
         if (!inControl()) {
             localValue = networkVariable.Value;
             deferPending = false;
+        } else if (isGlued) {
+            Value = getGlued!();
+        } else {
+            Value = localValue; // trigger validation constraints
         }
     }
 

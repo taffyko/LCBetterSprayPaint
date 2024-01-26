@@ -36,8 +36,8 @@ public class SprayPaintItemExt: NetworkBehaviour {
 
 
     public float PaintSize {
-        set { instance.playerHeldBy.Ext()!.PaintSize = value; }
-        get { return instance.playerHeldBy?.Ext()?.PaintSize ?? 1.0f; }
+        set { instance.playerHeldBy.Ext()!.PaintSize.Value = value; }
+        get { return instance.playerHeldBy?.Ext()?.PaintSize.Value ?? 1.0f; }
     }
 
     public NetworkVariable<float> ShakeMeter = new NetworkVariable<float>(1.0f);
@@ -49,9 +49,7 @@ public class SprayPaintItemExt: NetworkBehaviour {
     }
     [ServerRpc(RequireOwnership = false)]
     public void SetCurrentColorServerRpc(Color color) {
-        if (sessionData.allowColorChange.Value) {
-            _currentColor.Value = color;
-        }
+        _currentColor.Value = color;
     }
 
     public NetworkVariable<NetworkObjectReference> PlayerHeldBy = new NetworkVariable<NetworkObjectReference>();
@@ -136,18 +134,18 @@ public class SprayPaintItemExt: NetworkBehaviour {
         var shape = sprayCanColorChangeParticle.shape;
         shape.shapeType = ParticleSystemShapeType.Sphere;
 
-        var actions = new ActionSubscriptionBuilder(cleanupActions, () => HeldByLocalPlayer && Patches.CanUseItem(instance.playerHeldBy));
+        var actions = new ActionSubscriptionBuilder(cleanupActions, () => HeldByLocalPlayer && InActiveSlot && Patches.CanUseItem(instance.playerHeldBy));
         actions.Subscribe(
             Plugin.inputActions.SprayPaintEraseModifier,
             onStart: delegate {
-                if (Patches.AllowErasing) { IsErasing = true; }
+                if (SessionData.AllowErasing) { IsErasing = true; }
             }
         );
 
         actions.Subscribe(
             Plugin.inputActions.SprayPaintErase,
             onStart: delegate {
-                if (Patches.AllowErasing) { IsErasing = true; }
+                if (SessionData.AllowErasing) { IsErasing = true; }
                 instance.UseItemOnClient(true);
             },
             onStop: delegate {
@@ -158,6 +156,7 @@ public class SprayPaintItemExt: NetworkBehaviour {
         actions.Subscribe(
             Plugin.inputActions.SprayPaintNextColor,
             delegate {
+                if (!SessionData.AllowColorChange) return;
                 var idx = ColorPalette.FindIndex((Color color) => color == CurrentColor);
                 idx = posmod(++idx, ColorPalette.Count);
                 StartCoroutine(ChangeColorCoroutine(ColorPalette[idx]));
@@ -166,8 +165,42 @@ public class SprayPaintItemExt: NetworkBehaviour {
         actions.Subscribe(
             Plugin.inputActions.SprayPaintPreviousColor,
             delegate {
+                if (!SessionData.AllowColorChange) return;
                 var idx = ColorPalette.FindIndex((Color color) => color == CurrentColor);
                 idx = posmod(--idx, ColorPalette.Count);
+                StartCoroutine(ChangeColorCoroutine(ColorPalette[idx]));
+            }
+        );
+
+        actions.Subscribe(
+            Plugin.inputActions.SprayPaintColor1,
+            delegate {
+                if (!SessionData.AllowColorChange) return;
+                var idx = posmod(0, ColorPalette.Count);
+                StartCoroutine(ChangeColorCoroutine(ColorPalette[idx]));
+            }
+        );
+        actions.Subscribe(
+            Plugin.inputActions.SprayPaintColor2,
+            delegate {
+                if (!SessionData.AllowColorChange) return;
+                var idx = posmod(1, ColorPalette.Count);
+                StartCoroutine(ChangeColorCoroutine(ColorPalette[idx]));
+            }
+        );
+        actions.Subscribe(
+            Plugin.inputActions.SprayPaintColor3,
+            delegate {
+                if (!SessionData.AllowColorChange) return;
+                var idx = posmod(2, ColorPalette.Count);
+                StartCoroutine(ChangeColorCoroutine(ColorPalette[idx]));
+            }
+        );
+        actions.Subscribe(
+            Plugin.inputActions.SprayPaintColor4,
+            delegate {
+                if (!SessionData.AllowColorChange) return;
+                var idx = posmod(3, ColorPalette.Count);
                 StartCoroutine(ChangeColorCoroutine(ColorPalette[idx]));
             }
         );
@@ -183,18 +216,35 @@ public class SprayPaintItemExt: NetworkBehaviour {
             (_, _, coroutine) => StopCoroutine(coroutine)
         );
 
+        actions.Subscribe(
+            Plugin.inputActions.SprayPaintSize01,
+            delegate {
+                PaintSize = 0.1f;
+            }
+        );
+        actions.Subscribe(
+            Plugin.inputActions.SprayPaintSize1,
+            delegate {
+                PaintSize = 1.0f;
+            }
+        );
+        actions.Subscribe(
+            Plugin.inputActions.SprayPaintSize2,
+            delegate {
+                PaintSize = 2.0f;
+            }
+        );
+
         _isErasing.OnValueChanged += OnChangeErasing;
     }
 
     IEnumerator ChangeColorCoroutine(Color color) {
-        if (sessionData.allowColorChange.Value) {
-            CurrentColor = color;
-            UpdateParticles();
-            if (Traverse.Create(instance).Field("sprayCanTank").GetValue<float>() > 0f) {
-                sprayCanColorChangeParticle!.Play();
-                yield return new WaitForSeconds(0.1f);
-                sprayCanColorChangeParticle!.Stop();
-            }
+        CurrentColor = color;
+        UpdateParticles();
+        if (Traverse.Create(instance).Field("sprayCanTank").GetValue<float>() > 0f) {
+            sprayCanColorChangeParticle!.Play();
+            yield return new WaitForSeconds(0.1f);
+            sprayCanColorChangeParticle!.Stop();
         }
     }
 
@@ -219,7 +269,7 @@ public class SprayPaintItemExt: NetworkBehaviour {
         particleShape.scale = new Vector3(particleSize, particleSize, particleSize); // size of particle emission area
         var colorMat = ParticleMaterialForColor(CurrentColor);
         sprayCanColorChangeParticle!.GetComponent<ParticleSystemRenderer>().material = colorMat;
-        if (Patches.AllowErasing && IsErasing) {
+        if (SessionData.AllowErasing && IsErasing) {
             var mat = sprayEraseParticleMaterial;
             instance.sprayCanNeedsShakingParticle.GetComponent<ParticleSystemRenderer>().material = mat;
             instance.sprayParticle.GetComponent<ParticleSystemRenderer>().material = mat;
@@ -271,13 +321,13 @@ public class SprayPaintItemExt: NetworkBehaviour {
 
     [ServerRpc(RequireOwnership = false)]
     public void EraseServerRpc(Vector3 sprayPos, ServerRpcParams rpc = default) {
-        if (sessionData.allowErasing.Value) {
+        if (SessionData.AllowErasing) {
             EraseClientRpc(sprayPos);
         }
     }
     [ClientRpc]
     public void EraseClientRpc(Vector3 sprayPos) {
-        if (sessionData.allowErasing.Value) {
+        if (SessionData.AllowErasing) {
             if (!HeldByLocalPlayer) {
                 Patches.EraseSprayPaintAtPoint(instance, sprayPos);
             }

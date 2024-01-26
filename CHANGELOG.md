@@ -1,3 +1,9 @@
+# 2.0.2
+- Fixes some minor bugs, including an issue where spray paint failed to work when looking directly down
+- Fixes an issue where disabling AllowColorChange made spray paint invisible.
+- Fixes undeclared dependency on [InputUtils](https://thunderstore.io/c/lethal-company/p/Rune581/LethalCompany_InputUtils/), now added to the mod manifest.
+- Adds additional bindings for quickly switching sizes / colors
+
 # 2.0.1
 Fixes a major bug
 

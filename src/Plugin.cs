@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Collections.Generic;
 using System;
 using Unity.Netcode;
+using UnityEngine.SceneManagement;
 
 namespace BetterSprayPaint;
 
@@ -28,7 +29,9 @@ public partial class Plugin : BaseUnityPlugin {
     private void Awake() {
         log.LogInfo($"Loading {modGUID}");
         #if DEBUG
-        NetcodeInit();
+        if (SceneManager.GetActiveScene().name == "MainMenu") {
+            NetcodeInit();
+        }
         #endif
         ConfigInit();
         harmony.PatchAll(Assembly.GetExecutingAssembly());

@@ -12,10 +12,6 @@ namespace BetterSprayPaint;
 
 [HarmonyPatch]
 internal class Patches {
-    static SessionData? sessionData => SessionData.instance;
-    public static bool InfiniteTank => sessionData?.infiniteTank.Value ?? Plugin.InfiniteTank;
-    public static bool AllowErasing => sessionData?.allowErasing.Value ?? Plugin.AllowErasing;
-    public static bool ShakingNotNeeded => sessionData?.shakingNotNeeded.Value ?? Plugin.ShakingNotNeeded;
 
     [HarmonyPrefix]
     [HarmonyPatch(typeof(StartOfRound), "EndOfGame")]
@@ -33,10 +29,10 @@ internal class Patches {
     public static void LateUpdate(SprayPaintItem __instance, ref float ___sprayCanTank, ref float ___sprayCanShakeMeter, ref AudioSource ___sprayAudio, bool ___isSpraying) {
         var c = __instance.Ext();
         // Spray more, forever, faster
-        if (InfiniteTank) ___sprayCanTank = 1f;
+        if (SessionData.InfiniteTank) ___sprayCanTank = 1f;
         __instance.maxSprayPaintDecals = Plugin.MaxSprayPaintDecals;
         __instance.sprayIntervalSpeed = 0.01f * c.PaintSize;
-        if (ShakingNotNeeded) ___sprayCanShakeMeter = 1f;
+        if (SessionData.ShakingNotNeeded) ___sprayCanShakeMeter = 1f;
         ___sprayAudio.volume = Plugin.Volume;
 
         // Properly synchronize shake meter
@@ -57,12 +53,6 @@ internal class Patches {
 
         if (c.HeldByLocalPlayer) {
             var p = __instance.playerHeldBy.Ext();
-            if (p != null) {
-                // Synchronize size now
-                if (p._localPaintSize != p._paintSize.Value) {
-                    p.SetPaintSizeServerRpc(c.PaintSize);
-                }
-            }
 
             c.IsErasing = Plugin.inputActions.SprayPaintEraseModifier!.IsPressed() || Plugin.inputActions.SprayPaintErase!.IsPressed();
         }
@@ -101,7 +91,7 @@ internal class Patches {
     }
     public static bool EraseSprayPaintLocal(SprayPaintItem __instance, Vector3 sprayPos, Vector3 sprayRot, out RaycastHit sprayHit) {
         Ray ray = new Ray(sprayPos, sprayRot);
-        if (RaycastSkipPlayer(ray, out sprayHit, sessionData!.range.Value, __instance.Ext().sprayPaintMask, QueryTriggerInteraction.Collide, __instance)) {
+        if (RaycastSkipPlayer(ray, out sprayHit, SessionData.Range, __instance.Ext().sprayPaintMask, QueryTriggerInteraction.Collide, __instance)) {
             EraseSprayPaintAtPoint(__instance, sprayHit.point);
             return true;
         } else {
@@ -119,7 +109,7 @@ internal class Patches {
 
         c.UpdateParticles();
 
-        if (AllowErasing && c.IsErasing) {
+        if (SessionData.AllowErasing && c.IsErasing) {
             // "Erase" mode
             if (EraseSprayPaintLocal(__instance, sprayPos, sprayRot, out var sprayHit)) {
                 __result = true;
@@ -144,15 +134,15 @@ internal class Patches {
 
     // In the base game, a lot of raycasts fail because they hit the player rigidbody. This fixes that.
     public static bool RaycastSkipPlayer(Ray ray, out RaycastHit sprayHit, float _distance, int layerMask, QueryTriggerInteraction _queryTriggerInteraction, SprayPaintItem __instance) {
-        var playerRigidbody = __instance.playerHeldBy?.playerRigidbody;
-        if (playerRigidbody == null) {
-            Plugin.log?.LogWarning("Player rigidbody is null");
+        var playerObject = __instance.playerHeldBy?.gameObject;
+        if (playerObject == null) {
+            Plugin.log?.LogWarning("Player GameObject is null");
         }
         bool result = false;
         RaycastHit sprayHitOut = default;
-        float hitDistance = sessionData!.range.Value + 1f;
-        foreach (var hit in Physics.RaycastAll(ray, sessionData!.range.Value, layerMask, QueryTriggerInteraction.Ignore)) {
-            if (playerRigidbody == null || hit.rigidbody != playerRigidbody) {
+        float hitDistance = SessionData.Range + 1f;
+        foreach (var hit in Physics.RaycastAll(ray, SessionData.Range, layerMask, QueryTriggerInteraction.Ignore)) {
+            if (playerObject == null || !hit.transform.IsChildOf(playerObject.transform)) {
                 if (hit.distance < hitDistance) {
                     hitDistance = hit.distance;
                     sprayHitOut = hit;
@@ -190,10 +180,10 @@ internal class Patches {
     }
 
     public static float TankCapacity() {
-        if (InfiniteTank) {
+        if (SessionData.InfiniteTank) {
             return 25f;
         } else {
-            return sessionData?.tankCapacity.Value ?? Plugin.TankCapacity;
+            return SessionData.TankCapacity;
         }
     }
 
@@ -297,7 +287,7 @@ internal class Patches {
     }
 
     public static float _shakeRestoreAmount() {
-        return sessionData?.shakeEfficiency.Value ?? Plugin.ShakeEfficiency;
+        return SessionData.ShakeEfficiency;
     }
     [HarmonyTranspiler]
     [HarmonyPatch(typeof(SprayPaintItem), "ItemInteractLeftRight")]

@@ -8,14 +8,22 @@ public class SessionData : NetworkBehaviour {
     internal static GameObject prefab = new GameObject(nameof(BetterSprayPaint.SessionData));
     internal static SessionData? instance = null;
 
-    public NetworkVariable<bool> allowColorChange = new();
-    public NetworkVariable<bool> allowErasing = new();
-    public NetworkVariable<bool> infiniteTank = new();
-    public NetworkVariable<float> tankCapacity = new();
-    public NetworkVariable<float> shakeEfficiency = new();
-    public NetworkVariable<bool> shakingNotNeeded = new();
-    public NetworkVariable<float> range = new();
-    public NetworkVariable<float> maxSize = new();
+    NetworkVariable<bool> allowColorChange = new();
+    public static bool AllowColorChange => instance?.allowColorChange?.Value ?? Plugin.AllowColorChange;
+    NetworkVariable<bool> allowErasing = new();
+    public static bool AllowErasing => instance?.allowErasing?.Value ?? Plugin.AllowErasing;
+    NetworkVariable<bool> infiniteTank = new();
+    public static bool InfiniteTank => instance?.infiniteTank?.Value ?? Plugin.InfiniteTank;
+    NetworkVariable<float> tankCapacity = new();
+    public static float TankCapacity => instance?.tankCapacity?.Value ?? Plugin.TankCapacity;
+    NetworkVariable<float> shakeEfficiency = new();
+    public static float ShakeEfficiency => instance?.shakeEfficiency?.Value ?? Plugin.ShakeEfficiency;
+    NetworkVariable<bool> shakingNotNeeded = new();
+    public static bool ShakingNotNeeded => instance?.shakingNotNeeded?.Value ?? Plugin.ShakingNotNeeded;
+    NetworkVariable<float> range = new();
+    public static float Range => instance?.range?.Value ?? Plugin.Range;
+    NetworkVariable<float> maxSize = new();
+    public static float MaxSize => instance?.maxSize?.Value ?? Plugin.MaxSize;
 
     public override void OnNetworkSpawn() {
         instance = this.GetComponent<SessionData>();

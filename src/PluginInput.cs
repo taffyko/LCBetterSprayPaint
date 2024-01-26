@@ -17,15 +17,27 @@ public class PluginInputActions : LcInputActions {
 
     [InputAction("<Keyboard>/t", Name = "Spray Paint Next Color", ActionId = "SprayPaintNextColor")]
     public InputAction? SprayPaintNextColor { get; set; }
-
     [InputAction("", Name = "Spray Paint Previous Color", ActionId = "SprayPaintPreviousColor")]
     public InputAction? SprayPaintPreviousColor { get; set; }
+    [InputAction("", Name = "Spray Paint Color 1", ActionId = "SprayPaintColor1")]
+    public InputAction? SprayPaintColor1 { get; set; }
+    [InputAction("", Name = "Spray Paint Color 2", ActionId = "SprayPaintColor2")]
+    public InputAction? SprayPaintColor2 { get; set; }
+    [InputAction("", Name = "Spray Paint Color 3", ActionId = "SprayPaintColor3")]
+    public InputAction? SprayPaintColor3 { get; set; }
+    [InputAction("", Name = "Spray Paint Color 4", ActionId = "SprayPaintColor4")]
+    public InputAction? SprayPaintColor4 { get; set; }
 
     [InputAction("<Keyboard>/equals", Name = "Spray Paint Increase Size", ActionId = "SprayPaintIncreaseSize")]
     public InputAction? SprayPaintIncreaseSize { get; set; }
-
     [InputAction("<Keyboard>/minus", Name = "Spray Paint Decrease Size", ActionId = "SprayPaintDecreaseSize")]
     public InputAction? SprayPaintDecreaseSize { get; set; }
+    [InputAction("", Name = "Spray Paint Set Size 0.1", ActionId = "SprayPaintSize01")]
+    public InputAction? SprayPaintSize01 { get; set; }
+    [InputAction("", Name = "Spray Paint Set Size 1.0", ActionId = "SprayPaintSize1")]
+    public InputAction? SprayPaintSize1 { get; set; }
+    [InputAction("", Name = "Spray Paint Set Size 2.0", ActionId = "SprayPaintSize2")]
+    public InputAction? SprayPaintSize2 { get; set; }
 
     public PluginInputActions() : base() {
         #if DEBUG
