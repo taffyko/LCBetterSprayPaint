@@ -1,3 +1,8 @@
+# 2.0.3
+(Targeting v50)
+- Fixes an incompatibility that caused clients to be unable to load in when playing with various mods that register network prefabs, including LC_Office, CozyOffice, TheGiantSpecimens, CSync, and more.
+- Vanilla range value now mentioned in config
+
 # 2.0.2
 - Fixes some minor bugs, including an issue where spray paint failed to work when looking directly down
 - Fixes an issue where disabling AllowColorChange made spray paint invisible.

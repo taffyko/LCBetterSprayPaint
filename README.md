@@ -5,7 +5,7 @@ NOTE: All players must have the same version of the mod installed to play togeth
 - Several changes/bugfixes that make spraypaint work more consistently, look better, and feel better to use
 	- Certain spots in levels may still be unpaintable (due to invisible colliders). It remains to be seen if this can be fixed in the future.
 - You can now erase! (By default: press `E` + `LMB` at the same time)  
-  (can be disabled in config by lobby host)
+	(can be disabled in config by lobby host)
 
 ![Animated GIF demonstrating the improved spraypaint behavior](https://i.postimg.cc/vT2ggQbF/spraypaint-demo.webp)
 

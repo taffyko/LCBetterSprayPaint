@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using GameNetcodeStuff;
 using HarmonyLib;
 using Unity.Netcode;
@@ -18,11 +19,14 @@ public partial class Plugin {
 
     internal static GameObject? prefabContainer = null;
 
-    internal static void RegisterPrefab<T>(GameObject prefab) where T : MonoBehaviour {
+    internal static void RegisterPrefab<T>(GameObject prefab, string name) where T : MonoBehaviour {
         prefab.AddComponent<T>();
         prefab.hideFlags = HideFlags.HideAndDontSave;
         prefab.transform.SetParent(prefabContainer!.transform);
-        prefab.AddComponent<NetworkObject>();
+        var networkObject = prefab.AddComponent<NetworkObject>();
+        var hashInput = $"{modGUID}.{name}";
+        var hash = MD5.Create().ComputeHash(Encoding.UTF8.GetBytes(hashInput));
+        networkObject.GlobalObjectIdHash = BitConverter.ToUInt32(hash, 0);
         NetworkManager.Singleton.AddNetworkPrefab(prefab);
         cleanupActions.Add(() => {
             var instances = (MonoBehaviour[])Resources.FindObjectsOfTypeAll<T>();
@@ -69,7 +73,7 @@ public partial class Plugin {
     }
 
     static void RegisterCustomScripts() {
-        RegisterPrefab<SessionData>(SessionData.prefab);
+        RegisterPrefab<SessionData>(SessionData.prefab, nameof(SessionData));
         NetworkManager.Singleton.OnServerStarted += SessionData.ServerSpawn;
         cleanupActions.Add(() => { NetworkManager.Singleton.OnServerStarted -= SessionData.ServerSpawn; });
         NetworkManager.Singleton.OnClientStopped += SessionData.Despawn;
@@ -148,17 +152,21 @@ public partial class Plugin {
 
     static void NetcodeUnload() {
         // Needed in order to hot-reload NGO code patched by EvaisaDev/UnityNetcodePatcher
-        #if DEBUG
-        foreach (var key in rpcKeys) {
-            var rpcTable = (Dictionary<uint, NetworkManager.RpcReceiveHandler>)typeof(NetworkManager).GetField("__rpc_func_table").GetValue(null);
-            rpcTable.Remove(key);
+        if (NetworkManager.Singleton?.isActiveAndEnabled == true) {
+            #if DEBUG
+            foreach (var key in rpcKeys) {
+                var rpcTable = (Dictionary<uint, NetworkManager.RpcReceiveHandler>)typeof(NetworkManager).GetField("__rpc_func_table").GetValue(null);
+                rpcTable.Remove(key);
+            }
+            #endif
+            if (prefabContainer != null) {
+                foreach (Transform child in prefabContainer!.transform) {
+                    NetworkManager.Singleton.RemoveNetworkPrefab(child.gameObject);
+                    Destroy(child.gameObject);
+                }
+                Destroy(prefabContainer);
+            }
         }
-        #endif
-        foreach (Transform child in prefabContainer!.transform) {
-            NetworkManager.Singleton.RemoveNetworkPrefab(child.gameObject);
-            Destroy(child.gameObject);
-        }
-        Destroy(prefabContainer);
     }
 }
 
@@ -292,9 +300,10 @@ class NetVar<T> : INetVar where T : IEquatable<T> {
 [HarmonyPatch]
 class NetcodeInitPatch {
     static bool loaded = false;
-    [HarmonyPrefix]
-    [HarmonyPatch(typeof(MenuManager), "Update")]
-    public static void MenuUpdate(PreInitSceneScript __instance) {
+    // NOTE: Does not activate when loaded via ScriptEngine
+    [HarmonyPostfix]
+    [HarmonyPatch(typeof(GameNetworkManager), "Start")]
+    public static void GameNetworkManagerStart(GameNetworkManager __instance) {
         if (!loaded && NetworkManager.Singleton != null) {
             if (Plugin.prefabContainer == null) {
                 Plugin.NetcodeInit();

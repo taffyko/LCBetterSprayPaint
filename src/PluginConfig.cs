@@ -1,6 +1,6 @@
 using System;
-using System.Drawing;
 using BepInEx.Configuration;
+using UnityEngine;
 
 namespace BetterSprayPaint;
 
@@ -34,7 +34,7 @@ If you enter an invalid value, it will change back to "default" when the game st
         ConfEntry("General", nameof(ShakeEfficiency), .30f, "The percentage to restore on the \"shake meter\" each time the can is shaken.", float.TryParse, hostControlled: true, vanillaValue: 0.15f);
         ConfEntry("General", nameof(ShakingNotNeeded), false, "When enabled, the can never needs to be shaken.", bool.TryParse, hostControlled: true);
         ConfEntry("General", nameof(MaxSize), 2.0f, "The maximum size of spray paint that players are allowed to create.", float.TryParse, hostControlled: true);
-        ConfEntry("General", nameof(Range), 6.0f, "The maximum distance that players can spray.", float.TryParse, hostControlled: true);
+        ConfEntry("General", nameof(Range), 6.0f, "The maximum distance that players can spray.", float.TryParse, hostControlled: true, vanillaValue: 4f);
         ConfEntry("Client-side", nameof(Volume), .1f, "Volume of spray paint sound effects.", float.TryParse, vanillaValue: 1.0f);
         ConfEntry("Client-side", nameof(ShorterShakeAnimation), true, "Whether to shorten the can-shaking animation.", bool.TryParse);
         ConfEntry("Client-side", nameof(MaxSprayPaintDecals), 4000, "The maximum amount of spray paint decals that can exist at once. When the limit is reached, spray paint decals will start to disappear, starting with the oldest.", int.TryParse, vanillaValue: 1000);
@@ -42,15 +42,22 @@ If you enter an invalid value, it will change back to "default" when the game st
     }
 
     delegate bool ParseConfigValue<T>(string input, out T output);
-    private void ConfEntry<T>(string category, string name, T defaultValue, string description, ParseConfigValue<T> tryParse, bool hostControlled = false, T? vanillaValue = null) where T : struct {
+    private static bool NoopParse(string input, out string output) {
+        output = input;
+        return true;
+    }
+    private void ConfEntry<T>(string category, string name, T defaultValue, string description, ParseConfigValue<T> tryParse, bool hostControlled = false) {
+        ConfEntryInternal(category, name, defaultValue, description, tryParse, hostControlled);
+    }
+    private void ConfEntry<T>(string category, string name, T defaultValue, string description, ParseConfigValue<T> tryParse, T vanillaValue, bool hostControlled = false) {
+        ConfEntryInternal(category, name, defaultValue, description, tryParse, hostControlled, ConfEntryToString(vanillaValue));
+    }
+    private void ConfEntryInternal<T>(string category, string name, T defaultValue, string description, ParseConfigValue<T> tryParse, bool hostControlled = false, string? vanillaValueText = null) {
         var property = typeof(Plugin).GetProperty(name);
         // Build description
-        bool isFloat = typeof(T) == typeof(float);
-        string defaultValueText = isFloat ? string.Format("{0:0.0#####}", defaultValue) : defaultValue.ToString();
-        string desc = $"[default: {defaultValueText}]\n{description}";
+        string desc = $"[default: {ConfEntryToString(defaultValue)}]\n{description}";
         desc += hostControlled ? "\n(This setting is overridden by the lobby host)" : "\n(This setting's effect applies to you only)";
-        if (vanillaValue != null) {
-            string vanillaValueText = isFloat ? string.Format("{0:0.0#####}", vanillaValue) : vanillaValue.ToString();
+        if (vanillaValueText != null) {
             desc += $"\n(The original value of this setting in the base-game is {vanillaValueText})";
         }
         var config = Config.Bind<string>(category, name, "default", desc);
@@ -70,5 +77,16 @@ If you enter an invalid value, it will change back to "default" when the game st
             config.SettingChanged -= loadConfig;
             property.SetValue(null, defaultValue);
         });
+    }
+    private string ConfEntryToString(object? value) {
+        if (value == null) { return "null"; }
+        var type = value.GetType();
+        if (type == typeof(float)) {
+            return string.Format("{0:0.0#####}", (float)value);
+        } else if (type == typeof(UnityEngine.Color)) {
+            return $"#{ColorUtility.ToHtmlStringRGBA((UnityEngine.Color)value)}";
+        } else {
+            return value.ToString();
+        }
     }
 }
