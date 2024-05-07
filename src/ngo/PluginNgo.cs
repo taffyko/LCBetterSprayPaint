@@ -37,13 +37,16 @@ public partial class Plugin {
         });
     }
 
-    internal static void RegisterScriptWithExistingPrefab<TCustomBehaviour, TNativeBehaviour>()
+    internal static void AddScriptToInstances<TCustomBehaviour, TNativeBehaviour>(bool updatePrefabs = false)
         where TCustomBehaviour : NetworkBehaviour
         where TNativeBehaviour : NetworkBehaviour
     {
-        // Adding new NetworkBehaviour to prefab is viable when the object is instanced from the prefab at runtime
         foreach (var s in Resources.FindObjectsOfTypeAll<TNativeBehaviour>()) {
-            if (!s.gameObject.scene.IsValid()) {
+            if (s.gameObject.GetComponent<TCustomBehaviour>() != null) {
+                continue;
+            }
+            bool isPrefab = !s.gameObject.scene.IsValid();
+            if (isPrefab && updatePrefabs) {
                 var networkPrefabs = NetworkManager.Singleton.NetworkConfig.Prefabs;
                 var networkObject = s.gameObject.GetComponent<NetworkObject>();
                 NetworkPrefab networkPrefab = networkPrefabs.m_Prefabs.Find(p => p.SourcePrefabGlobalObjectIdHash == networkObject.GlobalObjectIdHash);
@@ -60,11 +63,20 @@ public partial class Plugin {
             }
             var component = s.gameObject.AddComponent<TCustomBehaviour>();
             component.SyncWithNetworkObject(s.gameObject.GetComponent<NetworkObject>());
-            if (!s.gameObject.scene.IsValid()) {
+            if (isPrefab && updatePrefabs) {
                 NetworkManager.Singleton.AddNetworkPrefab(s.gameObject);
             }
-
         }
+    }
+
+    internal static void RegisterScriptWithExistingPrefab<TCustomBehaviour, TNativeBehaviour>()
+        where TCustomBehaviour : NetworkBehaviour
+        where TNativeBehaviour : NetworkBehaviour
+    {
+        // Adding new NetworkBehaviour to prefab is viable when the object is instanced from the prefab at runtime
+        AddScriptToInstances<TCustomBehaviour, TNativeBehaviour>(updatePrefabs: true);
+        // Needed if a scene is later loaded that contains pre-existing instances of TNativeBehavior
+        sceneChangeActions.Add(() => AddScriptToInstances<TCustomBehaviour, TNativeBehaviour>());
         cleanupActions.Add(() => {
             foreach (var s in Resources.FindObjectsOfTypeAll<TNativeBehaviour>()) { Destroy(s.gameObject.GetComponent<TCustomBehaviour>()); }
         });

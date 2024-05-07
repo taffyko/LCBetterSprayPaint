@@ -1,3 +1,6 @@
+# 2.0.4
+- Fixes an issue that resulted in an excess of error logs in the console
+
 # 2.0.3
 (Targeting v50)
 - Fixes an incompatibility that caused clients to be unable to load in when playing with various mods that register network prefabs, including LC_Office, CozyOffice, TheGiantSpecimens, CSync, and more.

@@ -28,6 +28,7 @@ internal class Patches {
     [HarmonyPatch(typeof(SprayPaintItem), "LateUpdate")]
     public static void LateUpdate(SprayPaintItem __instance, ref float ___sprayCanTank, ref float ___sprayCanShakeMeter, ref AudioSource ___sprayAudio, bool ___isSpraying) {
         var c = __instance.Ext();
+        if (c == null) { return; }
         // Spray more, forever, faster
         if (SessionData.InfiniteTank) ___sprayCanTank = 1f;
         __instance.maxSprayPaintDecals = Plugin.MaxSprayPaintDecals;
@@ -238,6 +239,10 @@ internal class Patches {
     public static void PlayCanEmptyEffect(object instance, bool isEmpty) { throw new NotImplementedException("stub"); }
 
     public static bool AddSprayPaintLocal(SprayPaintItem instance, Vector3 sprayPos, Vector3 sprayRot) {
+        if ((SprayPaintItem.sprayPaintDecalsIndex - SprayPaintItem.sprayPaintDecals.Count) > 1) {
+            // defensive
+            SprayPaintItem.sprayPaintDecals.AddRange(new GameObject[(SprayPaintItem.sprayPaintDecalsIndex - 2) - SprayPaintItem.sprayPaintDecals.Count]);
+        }
         var result = _AddSprayPaintLocal(instance, sprayPos, sprayRot);
         if (result && SprayPaintItem.sprayPaintDecals.Count > SprayPaintItem.sprayPaintDecalsIndex) {
             var gameObject = SprayPaintItem.sprayPaintDecals[SprayPaintItem.sprayPaintDecalsIndex];

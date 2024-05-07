@@ -36,7 +36,18 @@ public class SprayPaintItemExt: NetworkBehaviour {
 
 
     public float PaintSize {
-        set { instance.playerHeldBy.Ext()!.PaintSize.Value = value; }
+        set { 
+            if (instance.playerHeldBy != null) {
+                var c = instance.playerHeldBy.Ext();
+                if (c != null) {
+                    c.PaintSize.Value = value;
+                } else {
+                    Plugin.log.LogWarning($"Tried to set {nameof(PaintSize)} but {nameof(SprayPaintItem.playerHeldBy)}.Ext() is null");
+                }
+            } else {
+                Plugin.log.LogWarning($"Tried to set {nameof(PaintSize)} but {nameof(SprayPaintItem.playerHeldBy)} is null");
+            }
+        }
         get { return instance.playerHeldBy?.Ext()?.PaintSize.Value ?? 1.0f; }
     }
 

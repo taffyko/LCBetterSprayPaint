@@ -18,7 +18,9 @@ public static class Utils {
     }
 
     public static SprayPaintItemExt Ext(this SprayPaintItem instance) {
-        return instance.GetComponent<SprayPaintItemExt>();
+        var c = instance.GetComponent<SprayPaintItemExt>();
+        if (c == null) { Plugin.log.LogError("SprayPaintItem.Ext() is null"); }
+        return c!;
     }
 
     public static PlayerExt? Ext(this PlayerControllerB? instance) {

@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 Set-Location "$PSScriptRoot\.."
-& .\scripts\build-release.ps1
+& '.\scripts\build.ps1' -Release
 
 [xml]$csproj = Get-Content .\*.csproj
 $dllName = $csproj.Project.PropertyGroup.AssemblyName

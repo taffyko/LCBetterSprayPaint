@@ -18,16 +18,20 @@ public partial class Plugin : BaseUnityPlugin {
     public const string modVersion = PluginInfo.PLUGIN_VERSION;
     
     internal static Harmony harmony = new Harmony(modGUID);
-    internal static ManualLogSource log;
+    internal static QuietLogSource log;
 
     internal static List<Action> cleanupActions = new List<Action>();
 
+    internal static List<Action> sceneChangeActions = new List<Action>();
+
     static Plugin() {
-        log = BepInEx.Logging.Logger.CreateLogSource(modName);
+        log = new QuietLogSource(modName);
+        BepInEx.Logging.Logger.Sources.Add(log);
     }
 
     private void Awake() {
         log.LogInfo($"Loading {modGUID}");
+        SceneManager.sceneLoaded += OnSceneLoaded;
         #if DEBUG
         if (SceneManager.GetActiveScene().name == "MainMenu") {
             NetcodeInit();
@@ -37,17 +41,24 @@ public partial class Plugin : BaseUnityPlugin {
         harmony.PatchAll(Assembly.GetExecutingAssembly());
     }
 
+    void OnSceneLoaded(Scene scene, LoadSceneMode mode) {
+        if (prefabContainer != null) {
+            foreach (var a in sceneChangeActions) {
+                a();
+            }
+        }
+    }
 
     private void OnDestroy() {
         #if DEBUG
         var cleanup = () => {
             NetcodeUnload();
+            SceneManager.sceneLoaded -= OnSceneLoaded;
             harmony?.UnpatchSelf();
             foreach (var action in cleanupActions) {
                 action();
             }
         };
-
         if (NetworkManager.Singleton.IsConnectedClient) {
             GameNetworkManager.Instance?.Disconnect();
             Action<bool>? callback = null;
