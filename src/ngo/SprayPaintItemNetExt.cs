@@ -42,7 +42,7 @@ public class SprayPaintItemNetExt: NetworkBehaviour {
                 if (c != null) {
                     c.PaintSize.Value = value;
                 } else {
-                    Plugin.log.LogWarning($"Tried to set {nameof(PaintSize)} but {nameof(SprayPaintItem.playerHeldBy)}.Ext() is null");
+                    Plugin.log.LogWarning($"Tried to set {nameof(PaintSize)} but {nameof(SprayPaintItem.playerHeldBy)}.NetExt() is null");
                 }
             } else {
                 Plugin.log.LogWarning($"Tried to set {nameof(PaintSize)} but {nameof(SprayPaintItem.playerHeldBy)} is null");
@@ -113,6 +113,8 @@ public class SprayPaintItemNetExt: NetworkBehaviour {
 
     public override void OnNetworkSpawn() {
         base.OnNetworkSpawn();
+        if (instance.isWeedKillerSprayBottle) { return; }
+
         sprayPaintMask = Traverse.Create(instance).Field("sprayPaintMask").GetValue<int>();
         var sprayCanMatsIndex = Traverse.Create(instance).Field<int>("sprayCanMatsIndex").Value;
         baseParticleMaterial = instance.particleMats[sprayCanMatsIndex];
@@ -144,107 +146,6 @@ public class SprayPaintItemNetExt: NetworkBehaviour {
         emission.rateOverTimeMultiplier = 100f;
         var shape = sprayCanColorChangeParticle.shape;
         shape.shapeType = ParticleSystemShapeType.Sphere;
-
-        // var actions = new ActionSubscriptionBuilder(cleanupActions, () => HeldByLocalPlayer && InActiveSlot && Patches.CanUseItem(instance.playerHeldBy));
-        // actions.Subscribe(
-        //     Plugin.inputActions.SprayPaintEraseModifier,
-        //     onStart: delegate {
-        //         if (SessionData.AllowErasing) { IsErasing = true; }
-        //     }
-        // );
-
-        // actions.Subscribe(
-        //     Plugin.inputActions.SprayPaintErase,
-        //     onStart: delegate {
-        //         if (SessionData.AllowErasing) { IsErasing = true; }
-        //         instance.UseItemOnClient(true);
-        //     },
-        //     onStop: delegate {
-        //         instance.UseItemOnClient(false);
-        //     }
-        // );
-
-        // actions.Subscribe(
-        //     Plugin.inputActions.SprayPaintNextColor,
-        //     delegate {
-        //         if (!SessionData.AllowColorChange) return;
-        //         var idx = ColorPalette.FindIndex((Color color) => color == CurrentColor);
-        //         idx = posmod(++idx, ColorPalette.Count);
-        //         StartCoroutine(ChangeColorCoroutine(ColorPalette[idx]));
-        //     }
-        // );
-        // actions.Subscribe(
-        //     Plugin.inputActions.SprayPaintPreviousColor,
-        //     delegate {
-        //         if (!SessionData.AllowColorChange) return;
-        //         var idx = ColorPalette.FindIndex((Color color) => color == CurrentColor);
-        //         idx = posmod(--idx, ColorPalette.Count);
-        //         StartCoroutine(ChangeColorCoroutine(ColorPalette[idx]));
-        //     }
-        // );
-
-        // actions.Subscribe(
-        //     Plugin.inputActions.SprayPaintColor1,
-        //     delegate {
-        //         if (!SessionData.AllowColorChange) return;
-        //         var idx = posmod(0, ColorPalette.Count);
-        //         StartCoroutine(ChangeColorCoroutine(ColorPalette[idx]));
-        //     }
-        // );
-        // actions.Subscribe(
-        //     Plugin.inputActions.SprayPaintColor2,
-        //     delegate {
-        //         if (!SessionData.AllowColorChange) return;
-        //         var idx = posmod(1, ColorPalette.Count);
-        //         StartCoroutine(ChangeColorCoroutine(ColorPalette[idx]));
-        //     }
-        // );
-        // actions.Subscribe(
-        //     Plugin.inputActions.SprayPaintColor3,
-        //     delegate {
-        //         if (!SessionData.AllowColorChange) return;
-        //         var idx = posmod(2, ColorPalette.Count);
-        //         StartCoroutine(ChangeColorCoroutine(ColorPalette[idx]));
-        //     }
-        // );
-        // actions.Subscribe(
-        //     Plugin.inputActions.SprayPaintColor4,
-        //     delegate {
-        //         if (!SessionData.AllowColorChange) return;
-        //         var idx = posmod(3, ColorPalette.Count);
-        //         StartCoroutine(ChangeColorCoroutine(ColorPalette[idx]));
-        //     }
-        // );
-
-        // actions.Subscribe(
-        //     Plugin.inputActions.SprayPaintIncreaseSize,
-        //     (_, _) => StartCoroutine(ChangeSizeCoroutine()),
-        //     (_, _, coroutine) => StopCoroutine(coroutine)
-        // );
-        // actions.Subscribe(
-        //     Plugin.inputActions.SprayPaintDecreaseSize,
-        //     (_, _) => StartCoroutine(ChangeSizeCoroutine()),
-        //     (_, _, coroutine) => StopCoroutine(coroutine)
-        // );
-
-        // actions.Subscribe(
-        //     Plugin.inputActions.SprayPaintSize01,
-        //     delegate {
-        //         PaintSize = 0.1f;
-        //     }
-        // );
-        // actions.Subscribe(
-        //     Plugin.inputActions.SprayPaintSize1,
-        //     delegate {
-        //         PaintSize = 1.0f;
-        //     }
-        // );
-        // actions.Subscribe(
-        //     Plugin.inputActions.SprayPaintSize2,
-        //     delegate {
-        //         PaintSize = 2.0f;
-        //     }
-        // );
 
         _isErasing.OnValueChanged += OnChangeErasing;
     }
@@ -299,6 +200,8 @@ public class SprayPaintItemNetExt: NetworkBehaviour {
     public override void OnNetworkDespawn()
     {
         base.OnNetworkDespawn();
+        if (instance.isWeedKillerSprayBottle) { return; }
+
         _isErasing.OnValueChanged -= OnChangeErasing;
         foreach (var action in cleanupActions) {
             action();
@@ -306,6 +209,8 @@ public class SprayPaintItemNetExt: NetworkBehaviour {
     }
 
     public void Update() {
+        if (instance.isWeedKillerSprayBottle) { return; }
+
         if (HeldByLocalPlayer && InActiveSlot) {
             UpdateTooltips();
         }

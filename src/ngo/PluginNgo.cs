@@ -8,7 +8,6 @@ using GameNetcodeStuff;
 using HarmonyLib;
 using Unity.Netcode;
 using UnityEngine;
-using BetterSprayPaint.Ngo;
 using UnityEngine.SceneManagement;
 using UnityEngine.Events;
 
@@ -42,11 +41,14 @@ static class NgoHelper {
         });
     }
 
-    internal static void AddScriptToInstances<TCustomBehaviour, TNativeBehaviour>(bool updatePrefabs = false)
+    internal static void AddScriptToInstances<TCustomBehaviour, TNativeBehaviour>(bool updatePrefabs = false, Type? excluded = null)
         where TCustomBehaviour : NetworkBehaviour
         where TNativeBehaviour : NetworkBehaviour
     {
         foreach (var s in Resources.FindObjectsOfTypeAll<TNativeBehaviour>()) {
+            if (excluded != null && s.GetType().IsInstanceOfType(excluded)) {
+                continue;
+            }
             if (s.gameObject.GetComponent<TCustomBehaviour>() != null) {
                 continue;
             }
@@ -74,21 +76,21 @@ static class NgoHelper {
         }
     }
 
-    internal static void RegisterScriptWithExistingPrefab<TCustomBehaviour, TNativeBehaviour>()
+    internal static void RegisterScriptWithExistingPrefab<TCustomBehaviour, TNativeBehaviour>(Type? excluded = null)
         where TCustomBehaviour : NetworkBehaviour
         where TNativeBehaviour : NetworkBehaviour
     {
         // Adding new NetworkBehaviour to prefab is viable when the object is instanced from the prefab at runtime
-        AddScriptToInstances<TCustomBehaviour, TNativeBehaviour>(updatePrefabs: true);
+        AddScriptToInstances<TCustomBehaviour, TNativeBehaviour>(updatePrefabs: true, excluded);
         // Needed if a scene is later loaded that contains pre-existing instances of TNativeBehavior
-        UnityAction<Scene, LoadSceneMode> handler = (_, _) => AddScriptToInstances<TCustomBehaviour, TNativeBehaviour>();
+        UnityAction<Scene, LoadSceneMode> handler = (_, _) => AddScriptToInstances<TCustomBehaviour, TNativeBehaviour>(excluded: excluded);
         SceneManager.sceneLoaded += handler;
         cleanupActions.Add(() => {
             SceneManager.sceneLoaded -= handler;
             foreach (var s in Resources.FindObjectsOfTypeAll<TNativeBehaviour>()) { GameObject.Destroy(s.gameObject.GetComponent<TCustomBehaviour>()); }
         });
         // For other cases, one can try patching Awake() to add the NetworkBehaviour then
-        BindToPreExistingObjectByBehaviourPatch<TCustomBehaviour, TNativeBehaviour>();
+        BindToPreExistingObjectByBehaviourPatch<TCustomBehaviour, TNativeBehaviour>(excluded);
     }
 
     static void RegisterCustomScripts() {
@@ -102,13 +104,13 @@ static class NgoHelper {
         RegisterScriptWithExistingPrefab<PlayerNetExt, PlayerControllerB>();
     }
 
-    private static List<(Type custom, Type native)> BehaviourBindings { get; } = new List<(Type, Type)>();
-    public static void BindToPreExistingObjectByBehaviourPatch<TCustomBehaviour, TNativeBehaviour>()
+    private static List<(Type custom, Type native, Type? excluded)> BehaviourBindings { get; } = new List<(Type, Type, Type?)>();
+    public static void BindToPreExistingObjectByBehaviourPatch<TCustomBehaviour, TNativeBehaviour>(Type? excluded = null)
         where TCustomBehaviour : NetworkBehaviour where TNativeBehaviour : NetworkBehaviour
     {
         var custom = typeof(TCustomBehaviour);
         var native = typeof(TNativeBehaviour);
-        BehaviourBindings.Add((custom, native));
+        BehaviourBindings.Add((custom, native, excluded));
         
         MethodBase method = AccessTools.Method(native, "Awake");
         if (method != null) {
@@ -118,7 +120,10 @@ static class NgoHelper {
     }
     internal static void BindBehaviourOnAwake(NetworkBehaviour __instance, MethodBase __originalMethod) {
         var type = __instance.GetType();
-        var items = BehaviourBindings.Where(obj => obj.native == __originalMethod.DeclaringType || type == obj.native);
+        var items = BehaviourBindings.Where(obj =>
+            (obj.native == __originalMethod.DeclaringType || type == obj.native)
+            && (obj.excluded == null || !type.IsInstanceOfType(obj.excluded))
+        );
         foreach (var it in items) {
             if (!__instance.gameObject.TryGetComponent(it.custom, out _)) {
                 (__instance.gameObject.AddComponent(it.custom) as NetworkBehaviour)!.SyncWithNetworkObject(__instance.gameObject.GetComponent<NetworkObject>());
@@ -158,7 +163,7 @@ static class NgoHelper {
         #endif
     }
 
-    static GameObject? FindBuiltinPrefabByScript<T>() where T : MonoBehaviour {
+    public static GameObject? FindBuiltinPrefabByScript<T>() where T : MonoBehaviour {
         GameObject? prefab = null;
         foreach (var s in Resources.FindObjectsOfTypeAll<T>()) {
             if (!s.gameObject.scene.IsValid()) {
@@ -193,132 +198,6 @@ static class NgoHelper {
         cleanupActions.Clear();
     }
 
-}
-
-interface INetVar : IDisposable {
-    void Synchronize();
-}
-
-class NetVar<T> : INetVar where T : IEquatable<T> {
-    readonly public NetworkVariable<T> networkVariable;
-
-    bool deferPending = true;
-    T deferredValue;
-
-    // Always in sync with networkVariable.Value
-    // The only time this will ever hold a different value is when this client is the owner
-    // and the value has just been set and not yet made a round-trip back from the server
-    private T localValue {
-        set {
-            if (isGlued) { setGlued!(value); }
-            _localValue = value;
-        }
-        get {
-            return _localValue;
-        }
-    }
-
-    private T _localValue;
-
-    // Getter/setter to synchronize value with an external local variable
-    readonly bool isGlued;
-    readonly Action<T>? setGlued;
-    readonly Func<T>? getGlued;
-
-    readonly Func<T, T>? validate;
-    readonly Func<bool> inControl;
-    readonly Action<T> SetOnServer;
-    readonly NetworkVariable<T>.OnValueChangedDelegate? onChange;
-    public NetVar(
-        out NetworkVariable<T> networkVariable,
-        Action<T> SetOnServer,
-        Func<bool> inControl,
-        T initialValue = default!,
-        NetworkVariable<T>.OnValueChangedDelegate? onChange = null,
-        Action<T>? setGlued = null,
-        Func<T>? getGlued = null,
-        Func<T, T>? validate = null
-    ) {
-        isGlued = setGlued != null && getGlued != null;
-        this.setGlued = setGlued;
-        this.getGlued = getGlued;
-
-        this.validate = validate;
-        this.onChange = onChange;
-        this.SetOnServer = SetOnServer;
-        this.inControl = inControl;
-
-        this.networkVariable = new NetworkVariable<T>(initialValue);
-        networkVariable = this.networkVariable;
-        _localValue = initialValue;
-        localValue = initialValue;
-        deferredValue = initialValue;
-
-        networkVariable.OnValueChanged += (prevValue, currentValue) => {
-            if (!EqualityComparer<T>.Default.Equals(localValue, currentValue)) {
-                Synchronize();
-                OnChange(prevValue, currentValue);
-            }
-        };
-    }
-
-    public void ServerSet(T value) {
-        if (validate != null) { value = validate(value); }
-        networkVariable.Value = value;
-    }
-
-    public void SetDeferred(T value) {
-        deferredValue = value;
-    }
-
-    void OnChange(T prevValue, T currentValue) {
-        if (onChange != null) { onChange(prevValue, currentValue); }
-    }
-
-    public T Value {
-        set {
-            if (inControl()) {
-                deferPending = false;
-                if (validate != null) { value = validate(value); }
-                if (!EqualityComparer<T>.Default.Equals(localValue, value)) {
-                    T prevValue = localValue;
-                    localValue = value;
-                    SetOnServer(value);
-                    OnChange(prevValue, value);
-                }
-            }
-        }
-        get {
-            Synchronize();
-            return localValue;
-        }
-    }
-
-    public void UpdateDeferred() {
-        if (inControl()) {
-            if (deferPending) {
-                Value = deferredValue;
-            }
-        }
-        deferPending = false;
-    }
-
-    // Should be called every tick
-    public void Synchronize() {
-        if (!inControl()) {
-            localValue = networkVariable.Value;
-            deferPending = false;
-        } else if (isGlued) {
-            Value = getGlued!();
-        } else {
-            Value = localValue; // trigger validation constraints
-        }
-    }
-
-    public void Dispose()
-    {
-        networkVariable.Dispose();
-    }
 }
 
 [HarmonyPatch]

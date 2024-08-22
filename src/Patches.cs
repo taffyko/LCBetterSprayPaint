@@ -28,6 +28,7 @@ internal class Patches {
     [HarmonyPrefix]
     [HarmonyPatch(typeof(SprayPaintItem), "LateUpdate")]
     public static void LateUpdate(SprayPaintItem __instance, ref float ___sprayCanTank, ref float ___sprayCanShakeMeter, ref AudioSource ___sprayAudio, bool ___isSpraying) {
+        if (__instance.isWeedKillerSprayBottle) { return; }
         __instance.Ext();
         var c = __instance.NetExt();
         if (c == null) { return; }
@@ -83,6 +84,7 @@ internal class Patches {
                 }
             }
         }
+        return;
     }
 
     public static void EraseSprayPaintAtPoint(SprayPaintItem __instance, Vector3 pos) {
@@ -105,6 +107,7 @@ internal class Patches {
     [HarmonyPrefix]
     [HarmonyPatch(typeof(SprayPaintItem), "TrySpraying")]
     public static bool TrySpraying(SprayPaintItem __instance, ref bool __result, ref RaycastHit ___sprayHit, ref float ___sprayCanShakeMeter) {
+        if (__instance.isWeedKillerSprayBottle) { return true; }
         var c = __instance.NetExt();
 
         var sprayPos = GameNetworkManager.Instance.localPlayerController.gameplayCamera.transform.position;
@@ -132,6 +135,7 @@ internal class Patches {
     [HarmonyPrefix]
     [HarmonyPatch(typeof(SprayPaintItem), "ItemActivate")]
     public static void ItemActivate(SprayPaintItem __instance) {
+        if (__instance.isWeedKillerSprayBottle) { return; }
         __instance.NetExt().UpdateParticles();
     }
 
@@ -160,13 +164,22 @@ internal class Patches {
     static MethodInfo physicsRaycast = typeof(Physics).GetMethod(nameof(Physics.Raycast), new[] { typeof(Ray), typeof(RaycastHit).MakeByRefType(), typeof(float), typeof(int), typeof(QueryTriggerInteraction) });
     static MethodInfo raycastSkipPlayer = typeof(Patches).GetMethod(nameof(RaycastSkipPlayer));
 
+    
+    [HarmonyReversePatch]
+    [HarmonyPatch(typeof(SprayPaintItem), "AddSprayPaintLocal")]
+    public static bool original_AddSprayPaintLocal(object instance, Vector3 sprayPos, Vector3 sprayRot) { throw new NotImplementedException("stub"); }
+    
     [HarmonyTranspiler]
     [HarmonyPatch(typeof(SprayPaintItem), "AddSprayPaintLocal")]
     private static IEnumerable<CodeInstruction> transpiler_AddSprayPaintLocal(IEnumerable<CodeInstruction> instructions) {
         var foundMinNextDecalDistance = false;
         var foundRaycastCall = false;
+        var addedWeedKillerSkip = false;
         foreach (var instruction in instructions) {
-            if (!foundMinNextDecalDistance && instruction.opcode == OpCodes.Ldc_R4 && (float)instruction.operand == 0.175f) {
+            if (!addedWeedKillerSkip) {
+                addedWeedKillerSkip = true;
+                foreach (var instr in _transpiler_AddWeedKillerSkip(instruction, typeof(Patches).GetMethod(nameof(original_AddSprayPaintLocal)))) { yield return instr; }
+            } else if (!foundMinNextDecalDistance && instruction.opcode == OpCodes.Ldc_R4 && (float)instruction.operand == 0.175f) {
                 foundMinNextDecalDistance = true;
                 // Reduce the minimum movement needed from the last position before you are allowed to spray a new decal
                 yield return new CodeInstruction(OpCodes.Ldc_R4, 0.001f);
@@ -175,8 +188,7 @@ internal class Patches {
                 // Replace the call to Physics.Raycast
                 yield return new CodeInstruction(OpCodes.Ldarg_0); // pass instance as extra parameter
                 yield return new CodeInstruction(OpCodes.Call, raycastSkipPlayer);
-            }
-            else {
+            } else {
                 yield return instruction;
             }
         }
@@ -190,12 +202,30 @@ internal class Patches {
         }
     }
 
+    private static IEnumerable<CodeInstruction> _transpiler_AddWeedKillerSkip(CodeInstruction instruction, MethodInfo original) {
+        var label = new System.Reflection.Emit.Label();
+        yield return new CodeInstruction(OpCodes.Ldarg_0);
+        yield return new CodeInstruction(OpCodes.Ldfld, typeof(SprayPaintItem).GetField("isWeedKillerSprayBottle"));
+        yield return new CodeInstruction(OpCodes.Brfalse_S, label);
+        yield return new CodeInstruction(OpCodes.Jmp, original);
+        var instr = instruction.WithLabels(label);
+        yield return instr;
+    }
+
+    [HarmonyReversePatch]
+    [HarmonyPatch(typeof(SprayPaintItem), "LateUpdate")]
+    public static void original_LateUpdate(object instance) { throw new NotImplementedException("stub"); }
+
     [HarmonyTranspiler]
     [HarmonyPatch(typeof(SprayPaintItem), "LateUpdate")]
     private static IEnumerable<CodeInstruction> transpiler_LateUpdate(IEnumerable<CodeInstruction> instructions) {
         var foundTankCapacityDivisor = false;
+        var addedWeedKillerSkip = false;
         foreach (var instruction in instructions) {
-            if (!foundTankCapacityDivisor && instruction.opcode == OpCodes.Ldc_R4 && (float)instruction.operand == 25f) {
+            if (!addedWeedKillerSkip) {
+                addedWeedKillerSkip = true;
+                foreach (var instr in _transpiler_AddWeedKillerSkip(instruction, typeof(Patches).GetMethod(nameof(original_LateUpdate)))) { yield return instr; }
+            } else if (!foundTankCapacityDivisor && instruction.opcode == OpCodes.Ldc_R4 && (float)instruction.operand == 25f) {
                 // Override the rate at which the spray tank depletes during use
                 foundTankCapacityDivisor = true;
                 yield return new CodeInstruction(OpCodes.Call, typeof(Patches).GetMethod(nameof(TankCapacity)));
@@ -301,6 +331,12 @@ internal class Patches {
         return result;
     }
 
+    
+
+    [HarmonyReversePatch]
+    [HarmonyPatch(typeof(SprayPaintItem), "ItemInteractLeftRight")]
+    public static void original_ItemInteractLeftRight(object instance, bool right) { throw new NotImplementedException("stub"); }
+    
     public static float _shakeRestoreAmount() {
         return SessionData.ShakeEfficiency;
     }
@@ -308,8 +344,12 @@ internal class Patches {
     [HarmonyPatch(typeof(SprayPaintItem), "ItemInteractLeftRight")]
     private static IEnumerable<CodeInstruction> transpiler_ItemInteractLeftRight(IEnumerable<CodeInstruction> instructions) {
         var foundShakeRestoreAmount = false;
+        var addedWeedKillerSkip = false;
         foreach (var instruction in instructions) {
-            if (!foundShakeRestoreAmount && instruction.opcode == OpCodes.Ldc_R4 && (float)instruction.operand == 0.15f) {
+            if (!addedWeedKillerSkip) {
+                addedWeedKillerSkip = true;
+                foreach (var instr in _transpiler_AddWeedKillerSkip(instruction, typeof(Patches).GetMethod(nameof(original_ItemInteractLeftRight)))) { yield return instr; }
+            } else if (!foundShakeRestoreAmount && instruction.opcode == OpCodes.Ldc_R4 && (float)instruction.operand == 0.15f) {
                 // Make shaking restore double the normal amount on the "shake meter"
                 foundShakeRestoreAmount = true;
                 yield return new CodeInstruction(OpCodes.Call, typeof(Patches).GetMethod(nameof(_shakeRestoreAmount)));

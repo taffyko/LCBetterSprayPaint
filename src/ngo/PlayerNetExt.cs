@@ -20,9 +20,7 @@ public class PlayerNetExt : NetworkBehaviour {
         PaintSize = new(out paintSize, SetPaintSizeServerRpc, () => instance.IsLocalPlayer(),
             validate: value => Mathf.Clamp(value, 0.1f, SessionData.MaxSize),
             initialValue: 1.0f);
-        netVars = typeof(PlayerNetExt).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-            .Where(field => typeof(INetVar).IsAssignableFrom(field.FieldType))
-            .Select(field => (INetVar)field.GetValue(this)).ToArray();
+        netVars = INetVar.GetAllNetVars(this);
     }
 
     public override void OnNetworkSpawn() {
