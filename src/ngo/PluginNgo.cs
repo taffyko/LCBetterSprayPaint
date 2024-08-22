@@ -8,14 +8,19 @@ using GameNetcodeStuff;
 using HarmonyLib;
 using Unity.Netcode;
 using UnityEngine;
+using BetterSprayPaint.Ngo;
+using UnityEngine.SceneManagement;
+using UnityEngine.Events;
 
-namespace BetterSprayPaint;
 
-public partial class Plugin {
+namespace BetterSprayPaint.Ngo {
 
+static class NgoHelper {
     #if DEBUG
     static HashSet<uint> rpcKeys = new HashSet<uint>();
     #endif
+
+    internal static List<Action> cleanupActions = new List<Action>();
 
     internal static GameObject? prefabContainer = null;
 
@@ -24,7 +29,7 @@ public partial class Plugin {
         prefab.hideFlags = HideFlags.HideAndDontSave;
         prefab.transform.SetParent(prefabContainer!.transform);
         var networkObject = prefab.AddComponent<NetworkObject>();
-        var hashInput = $"{modGUID}.{name}";
+        var hashInput = $"{Plugin.modGUID}.{name}";
         var hash = MD5.Create().ComputeHash(Encoding.UTF8.GetBytes(hashInput));
         networkObject.GlobalObjectIdHash = BitConverter.ToUInt32(hash, 0);
         NetworkManager.Singleton.AddNetworkPrefab(prefab);
@@ -32,7 +37,7 @@ public partial class Plugin {
             var instances = (MonoBehaviour[])Resources.FindObjectsOfTypeAll<T>();
             foreach (var instance in instances) {
                 NetworkManager.Singleton.RemoveNetworkPrefab(prefab);
-                Destroy(instance.gameObject);
+                GameObject.Destroy(instance.gameObject);
             }
         });
     }
@@ -76,9 +81,11 @@ public partial class Plugin {
         // Adding new NetworkBehaviour to prefab is viable when the object is instanced from the prefab at runtime
         AddScriptToInstances<TCustomBehaviour, TNativeBehaviour>(updatePrefabs: true);
         // Needed if a scene is later loaded that contains pre-existing instances of TNativeBehavior
-        sceneChangeActions.Add(() => AddScriptToInstances<TCustomBehaviour, TNativeBehaviour>());
+        UnityAction<Scene, LoadSceneMode> handler = (_, _) => AddScriptToInstances<TCustomBehaviour, TNativeBehaviour>();
+        SceneManager.sceneLoaded += handler;
         cleanupActions.Add(() => {
-            foreach (var s in Resources.FindObjectsOfTypeAll<TNativeBehaviour>()) { Destroy(s.gameObject.GetComponent<TCustomBehaviour>()); }
+            SceneManager.sceneLoaded -= handler;
+            foreach (var s in Resources.FindObjectsOfTypeAll<TNativeBehaviour>()) { GameObject.Destroy(s.gameObject.GetComponent<TCustomBehaviour>()); }
         });
         // For other cases, one can try patching Awake() to add the NetworkBehaviour then
         BindToPreExistingObjectByBehaviourPatch<TCustomBehaviour, TNativeBehaviour>();
@@ -91,8 +98,8 @@ public partial class Plugin {
         NetworkManager.Singleton.OnClientStopped += SessionData.Despawn;
         cleanupActions.Add(() => { NetworkManager.Singleton.OnClientStopped -= SessionData.Despawn; });
 
-        RegisterScriptWithExistingPrefab<SprayPaintItemExt, SprayPaintItem>();
-        RegisterScriptWithExistingPrefab<PlayerExt, PlayerControllerB>();
+        RegisterScriptWithExistingPrefab<SprayPaintItemNetExt, SprayPaintItem>();
+        RegisterScriptWithExistingPrefab<PlayerNetExt, PlayerControllerB>();
     }
 
     private static List<(Type custom, Type native)> BehaviourBindings { get; } = new List<(Type, Type)>();
@@ -105,8 +112,8 @@ public partial class Plugin {
         
         MethodBase method = AccessTools.Method(native, "Awake");
         if (method != null) {
-            var hMethod = new HarmonyMethod(typeof(Plugin), nameof(BindBehaviourOnAwake));
-            harmony.Patch(method, postfix: hMethod);
+            var hMethod = new HarmonyMethod(typeof(NgoHelper), nameof(BindBehaviourOnAwake));
+            Plugin.harmony.Patch(method, postfix: hMethod);
         }
     }
     internal static void BindBehaviourOnAwake(NetworkBehaviour __instance, MethodBase __originalMethod) {
@@ -126,7 +133,7 @@ public partial class Plugin {
         prefabContainer = new GameObject();
         prefabContainer.SetActive(false);
         prefabContainer.hideFlags = HideFlags.HideAndDontSave;
-        DontDestroyOnLoad(prefabContainer);
+        GameObject.DontDestroyOnLoad(prefabContainer);
 
         RegisterCustomScripts();
 
@@ -141,7 +148,7 @@ public partial class Plugin {
             foreach (var method in methods) {
                 var attributes = method.GetCustomAttributes(typeof(RuntimeInitializeOnLoadMethodAttribute), false);
                 if (attributes.Length > 0) {
-                        method.Invoke(null, null);
+                    method.Invoke(null, null);
                 }
             }
         }
@@ -162,8 +169,9 @@ public partial class Plugin {
         return prefab;
     }
 
-    static void NetcodeUnload() {
+    public static void NetcodeUnload() {
         // Needed in order to hot-reload NGO code patched by EvaisaDev/UnityNetcodePatcher
+        Plugin.log.LogInfo($"Unloading NGO for {Plugin.modName}");
         if (NetworkManager.Singleton?.isActiveAndEnabled == true) {
             #if DEBUG
             foreach (var key in rpcKeys) {
@@ -174,12 +182,17 @@ public partial class Plugin {
             if (prefabContainer != null) {
                 foreach (Transform child in prefabContainer!.transform) {
                     NetworkManager.Singleton.RemoveNetworkPrefab(child.gameObject);
-                    Destroy(child.gameObject);
+                    GameObject.Destroy(child.gameObject);
                 }
-                Destroy(prefabContainer);
+                GameObject.Destroy(prefabContainer);
             }
         }
+        foreach (var action in cleanupActions) {
+            action();
+        }
+        cleanupActions.Clear();
     }
+
 }
 
 interface INetVar : IDisposable {
@@ -308,7 +321,6 @@ class NetVar<T> : INetVar where T : IEquatable<T> {
     }
 }
 
-
 [HarmonyPatch]
 class NetcodeInitPatch {
     static bool loaded = false;
@@ -317,10 +329,12 @@ class NetcodeInitPatch {
     [HarmonyPatch(typeof(GameNetworkManager), "Start")]
     public static void GameNetworkManagerStart(GameNetworkManager __instance) {
         if (!loaded && NetworkManager.Singleton != null) {
-            if (Plugin.prefabContainer == null) {
-                Plugin.NetcodeInit();
+            if (NgoHelper.prefabContainer == null) {
+                NgoHelper.NetcodeInit();
             }
             loaded = true;
         }
     }
+}
+
 }

@@ -1,11 +1,11 @@
 using Unity.Netcode;
 using UnityEngine;
 
-namespace BetterSprayPaint;
+namespace BetterSprayPaint.Ngo;
 
 // Global synchronized lobby state
 public class SessionData : NetworkBehaviour {
-    internal static GameObject prefab = new GameObject(nameof(BetterSprayPaint.SessionData));
+    internal static GameObject prefab = new GameObject(nameof(BetterSprayPaint.Ngo.SessionData));
     internal static SessionData? instance = null;
 
     NetworkVariable<bool> allowColorChange = new();

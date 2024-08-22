@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System;
 using Unity.Netcode;
 using UnityEngine.SceneManagement;
+using BetterSprayPaint.Ngo;
+using UnityEngine;
 
 namespace BetterSprayPaint;
 
@@ -31,45 +33,31 @@ public partial class Plugin : BaseUnityPlugin {
 
     private void Awake() {
         log.LogInfo($"Loading {modGUID}");
-        SceneManager.sceneLoaded += OnSceneLoaded;
         #if DEBUG
-        if (SceneManager.GetActiveScene().name == "MainMenu") {
-            NetcodeInit();
+        if (!NetworkManager.Singleton.IsConnectedClient) {
+            if (NgoHelper.prefabContainer == null) {
+                NgoHelper.NetcodeInit();
+            }
         }
         #endif
         ConfigInit();
         harmony.PatchAll(Assembly.GetExecutingAssembly());
     }
 
-    void OnSceneLoaded(Scene scene, LoadSceneMode mode) {
-        if (prefabContainer != null) {
-            foreach (var a in sceneChangeActions) {
-                a();
-            }
-        }
-    }
-
     private void OnDestroy() {
         #if DEBUG
         var cleanup = () => {
-            NetcodeUnload();
-            SceneManager.sceneLoaded -= OnSceneLoaded;
+            if (!NetworkManager.Singleton.IsConnectedClient) {
+                NgoHelper.NetcodeUnload();
+            }
             harmony?.UnpatchSelf();
             foreach (var action in cleanupActions) {
                 action();
             }
+            foreach (var obj in FindObjectsOfType<SprayPaintItemExt>()) { Destroy(obj); }
+            cleanupActions.Clear();
         };
-        if (NetworkManager.Singleton.IsConnectedClient) {
-            GameNetworkManager.Instance?.Disconnect();
-            Action<bool>? callback = null;
-            callback = (bool arg) => {
-                cleanup();
-                NetworkManager.Singleton.OnClientStopped -= callback;
-            };
-            NetworkManager.Singleton.OnClientStopped += callback;
-        } else {
-            cleanup();
-        }
+        cleanup();
         log?.LogInfo($"Unloading {modGUID}");
         #endif
     }

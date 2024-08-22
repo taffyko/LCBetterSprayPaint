@@ -3,6 +3,7 @@ using GameNetcodeStuff;
 using Unity.Netcode;
 using Unity.Collections;
 using UnityEngine;
+using BetterSprayPaint.Ngo;
 
 namespace BetterSprayPaint;
 
@@ -17,14 +18,20 @@ public static class Utils {
         return player != null && player == StartOfRound.Instance?.localPlayerController;
     }
 
-    public static SprayPaintItemExt Ext(this SprayPaintItem instance) {
-        var c = instance.GetComponent<SprayPaintItemExt>();
+    public static SprayPaintItemNetExt NetExt(this SprayPaintItem instance) {
+        var c = instance.GetComponent<SprayPaintItemNetExt>();
         if (c == null) { Plugin.log.LogError("SprayPaintItem.Ext() is null"); }
         return c!;
     }
 
-    public static PlayerExt? Ext(this PlayerControllerB? instance) {
-        if (instance != null && instance.TryGetComponent<PlayerExt>(out var playerExt)) {
+    public static SprayPaintItemExt Ext(this SprayPaintItem instance) {
+        var c = instance.GetComponent<SprayPaintItemExt>();
+        if (c == null) { c = instance.gameObject.AddComponent<SprayPaintItemExt>(); }
+        return c;
+    }
+
+    public static PlayerNetExt? NetExt(this PlayerControllerB? instance) {
+        if (instance != null && instance.TryGetComponent<PlayerNetExt>(out var playerExt)) {
             return playerExt;
         }
         return null;

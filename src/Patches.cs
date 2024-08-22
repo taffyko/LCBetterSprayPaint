@@ -7,6 +7,7 @@ using System;
 using UnityEngine.Rendering.HighDefinition;
 using GameNetcodeStuff;
 using Unity.Netcode;
+using BetterSprayPaint.Ngo;
 
 namespace BetterSprayPaint;
 
@@ -27,7 +28,8 @@ internal class Patches {
     [HarmonyPrefix]
     [HarmonyPatch(typeof(SprayPaintItem), "LateUpdate")]
     public static void LateUpdate(SprayPaintItem __instance, ref float ___sprayCanTank, ref float ___sprayCanShakeMeter, ref AudioSource ___sprayAudio, bool ___isSpraying) {
-        var c = __instance.Ext();
+        __instance.Ext();
+        var c = __instance.NetExt();
         if (c == null) { return; }
         // Spray more, forever, faster
         if (SessionData.InfiniteTank) ___sprayCanTank = 1f;
@@ -53,7 +55,7 @@ internal class Patches {
         }
 
         if (c.HeldByLocalPlayer) {
-            var p = __instance.playerHeldBy.Ext();
+            var p = __instance.playerHeldBy.NetExt();
 
             c.IsErasing = Plugin.inputActions.SprayPaintEraseModifier!.IsPressed() || Plugin.inputActions.SprayPaintErase!.IsPressed();
         }
@@ -85,14 +87,14 @@ internal class Patches {
 
     public static void EraseSprayPaintAtPoint(SprayPaintItem __instance, Vector3 pos) {
         foreach (GameObject decal in SprayPaintItem.sprayPaintDecals) {
-            if (decal != null && Vector3.Distance(decal.transform.position, pos) < Mathf.Max(0.15f, 0.5f * __instance.Ext().PaintSize)) {
+            if (decal != null && Vector3.Distance(decal.transform.position, pos) < Mathf.Max(0.15f, 0.5f * __instance.NetExt().PaintSize)) {
                 decal.SetActive(false);
             }
         }
     }
     public static bool EraseSprayPaintLocal(SprayPaintItem __instance, Vector3 sprayPos, Vector3 sprayRot, out RaycastHit sprayHit) {
         Ray ray = new Ray(sprayPos, sprayRot);
-        if (RaycastSkipPlayer(ray, out sprayHit, SessionData.Range, __instance.Ext().sprayPaintMask, QueryTriggerInteraction.Collide, __instance)) {
+        if (RaycastSkipPlayer(ray, out sprayHit, SessionData.Range, __instance.NetExt().sprayPaintMask, QueryTriggerInteraction.Collide, __instance)) {
             EraseSprayPaintAtPoint(__instance, sprayHit.point);
             return true;
         } else {
@@ -103,7 +105,7 @@ internal class Patches {
     [HarmonyPrefix]
     [HarmonyPatch(typeof(SprayPaintItem), "TrySpraying")]
     public static bool TrySpraying(SprayPaintItem __instance, ref bool __result, ref RaycastHit ___sprayHit, ref float ___sprayCanShakeMeter) {
-        var c = __instance.Ext();
+        var c = __instance.NetExt();
 
         var sprayPos = GameNetworkManager.Instance.localPlayerController.gameplayCamera.transform.position;
         var sprayRot = GameNetworkManager.Instance.localPlayerController.gameplayCamera.transform.forward;
@@ -130,7 +132,7 @@ internal class Patches {
     [HarmonyPrefix]
     [HarmonyPatch(typeof(SprayPaintItem), "ItemActivate")]
     public static void ItemActivate(SprayPaintItem __instance) {
-        __instance.Ext().UpdateParticles();
+        __instance.NetExt().UpdateParticles();
     }
 
     // In the base game, a lot of raycasts fail because they hit the player rigidbody. This fixes that.
@@ -237,6 +239,45 @@ internal class Patches {
     [HarmonyReversePatch]
     [HarmonyPatch(typeof(SprayPaintItem), "PlayCanEmptyEffect")]
     public static void PlayCanEmptyEffect(object instance, bool isEmpty) { throw new NotImplementedException("stub"); }
+    
+    public static void PositionSprayPaint(SprayPaintItem instance, GameObject gameObject, RaycastHit sprayHit) {
+        // Use the raycast normal to orient the decal so that decals are no longer distorted when spraying at an angle
+        gameObject.transform.forward = -sprayHit.normal;
+        gameObject.transform.position = sprayHit.point;
+
+        // Fix for spray paint failing to clear (https://github.com/taffyko/LCBetterSprayPaint/issues/4)
+        // The game uses GrabbableObject.inElevator to decide whether spray paint should be parented to HangarShip (persistent) or MapPropsContainer (temporary)
+        // This value fails to update properly if the player leaves the ship while the spray paint is in a non-active slot.
+        // - This parenting implementation doesn't have that issue.
+        if (sprayHit.collider.gameObject.layer == 11 || sprayHit.collider.gameObject.layer == 8 || sprayHit.collider.gameObject.layer == 0)
+        {
+            if (sprayHit.collider.transform.IsChildOf(StartOfRound.Instance.elevatorTransform) || RoundManager.Instance.mapPropsContainer == null) {
+                gameObject.transform.SetParent(StartOfRound.Instance.elevatorTransform, true);
+            } else {
+                gameObject.transform.SetParent(RoundManager.Instance.mapPropsContainer.transform, true);
+            }
+        }
+
+        // Spray paint had a netcode issue where some decals don't show up on remote clients,
+        // because their DecalProjector.enabled is set to false. Make sure it's set to true whenever a decal is added.
+        var projector = gameObject.GetComponent<DecalProjector>();
+        projector.enabled = true;
+
+        var c = instance.NetExt();
+
+        projector.drawDistance = Plugin.DrawDistance;
+
+        projector.material = c.DecalMaterialForColor(c.CurrentColor);
+
+        projector.scaleMode = DecalScaleMode.InheritFromHierarchy;
+        gameObject.transform.localScale = new Vector3(1f, 1f, 1f);
+        var parentScale = gameObject.transform.lossyScale;
+        gameObject.transform.localScale = new Vector3(
+            (1f/parentScale.x) * c.PaintSize,
+            (1f/parentScale.y) * c.PaintSize,
+            1.0f
+        );
+    }
 
     public static bool AddSprayPaintLocal(SprayPaintItem instance, Vector3 sprayPos, Vector3 sprayRot) {
         if ((SprayPaintItem.sprayPaintDecalsIndex - SprayPaintItem.sprayPaintDecals.Count) > 1) {
@@ -247,22 +288,8 @@ internal class Patches {
         if (result && SprayPaintItem.sprayPaintDecals.Count > SprayPaintItem.sprayPaintDecalsIndex) {
             var gameObject = SprayPaintItem.sprayPaintDecals[SprayPaintItem.sprayPaintDecalsIndex];
 
-            // Use the raycast normal to orient the decal so that decals are no longer distorted when spraying at an angle
             var sprayHit = Traverse.Create(instance).Field<RaycastHit>("sprayHit").Value;
-            gameObject.transform.forward = -sprayHit.normal;
-
-            // Fix for spray paint failing to clear (https://github.com/taffyko/LCBetterSprayPaint/issues/4)
-            // The game uses GrabbableObject.inElevator to decide whether spray paint should be parented to HangarShip (persistent) or MapPropsContainer (temporary)
-            // This value fails to update properly if the player leaves the ship while the spray paint is in a non-active slot.
-            // - This parenting implementation doesn't have that issue.
-            if (sprayHit.collider.gameObject.layer == 11 || sprayHit.collider.gameObject.layer == 8 || sprayHit.collider.gameObject.layer == 0)
-            {
-                if (sprayHit.collider.transform.IsChildOf(StartOfRound.Instance.elevatorTransform) || RoundManager.Instance.mapPropsContainer == null) {
-                    gameObject.transform.SetParent(StartOfRound.Instance.elevatorTransform, true);
-                } else {
-                    gameObject.transform.SetParent(RoundManager.Instance.mapPropsContainer.transform, true);
-                }
-            }
+            PositionSprayPaint(instance, gameObject, sprayHit);
 
             #if DEBUG
             gameObject.name = $"SprayDecal_{SprayPaintItem.sprayPaintDecalsIndex}";
@@ -270,23 +297,6 @@ internal class Patches {
             Plugin.log.LogInfo($"{gameObject.name} added to {gameObject.transform.parent.name} at{gameObject.transform.position}");
             #endif
 
-            // Spray paint had a netcode issue where some decals don't show up on remote clients,
-            // because their DecalProjector.enabled is set to false. Make sure it's set to true whenever a decal is added.
-            var projector = gameObject.GetComponent<DecalProjector>();
-            projector.enabled = true;
-
-            var c = instance.Ext();
-
-            projector.drawDistance = Plugin.DrawDistance;
-
-            projector.material = c.DecalMaterialForColor(c.CurrentColor);
-
-            projector.scaleMode = DecalScaleMode.InheritFromHierarchy;
-            gameObject.transform.localScale = new Vector3(
-                c.PaintSize,
-                c.PaintSize,
-                1.0f
-            );
         }
         return result;
     }

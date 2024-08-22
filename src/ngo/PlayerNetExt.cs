@@ -5,9 +5,9 @@ using HarmonyLib;
 using Unity.Netcode;
 using UnityEngine;
 
-namespace BetterSprayPaint;
+namespace BetterSprayPaint.Ngo;
 // Per-player synchronized state
-public class PlayerExt : NetworkBehaviour {
+public class PlayerNetExt : NetworkBehaviour {
     public PlayerControllerB instance => GetComponent<PlayerControllerB>();
 
 
@@ -16,11 +16,11 @@ public class PlayerExt : NetworkBehaviour {
 
     INetVar[] netVars = [];
 
-    PlayerExt() {
+    PlayerNetExt() {
         PaintSize = new(out paintSize, SetPaintSizeServerRpc, () => instance.IsLocalPlayer(),
             validate: value => Mathf.Clamp(value, 0.1f, SessionData.MaxSize),
             initialValue: 1.0f);
-        netVars = typeof(PlayerExt).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+        netVars = typeof(PlayerNetExt).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
             .Where(field => typeof(INetVar).IsAssignableFrom(field.FieldType))
             .Select(field => (INetVar)field.GetValue(this)).ToArray();
     }
