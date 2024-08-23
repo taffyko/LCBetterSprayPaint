@@ -8,6 +8,7 @@ using UnityEngine.Rendering.HighDefinition;
 using GameNetcodeStuff;
 using Unity.Netcode;
 using BetterSprayPaint.Ngo;
+using System.Linq;
 
 namespace BetterSprayPaint;
 
@@ -96,7 +97,7 @@ internal class Patches {
     }
     public static bool EraseSprayPaintLocal(SprayPaintItem __instance, Vector3 sprayPos, Vector3 sprayRot, out RaycastHit sprayHit) {
         Ray ray = new Ray(sprayPos, sprayRot);
-        if (RaycastSkipPlayer(ray, out sprayHit, SessionData.Range, __instance.NetExt().sprayPaintMask, QueryTriggerInteraction.Collide, __instance)) {
+        if (RaycastCustom(ray, out sprayHit, SessionData.Range, __instance.NetExt().sprayPaintMask, QueryTriggerInteraction.Collide, __instance)) {
             EraseSprayPaintAtPoint(__instance, sprayHit.point);
             return true;
         } else {
@@ -138,9 +139,23 @@ internal class Patches {
         if (__instance.isWeedKillerSprayBottle) { return; }
         __instance.NetExt().UpdateParticles();
     }
+    
+    public static HashSet<string> CompanyCruiserColliderBlacklist = new HashSet<string> {
+        "Meshes/DoorLeftContainer/Door/DoorTrigger",
+        "CollisionTriggers/Cube",
+        "PushTrigger",
+        "Triggers/ItemDropRegion",
+        "Triggers/BackPhysicsRegion",
+        "Triggers/LeftShelfPlacementCollider/bounds",
+        "Triggers/RightShelfPlacementCollider/bounds",
+        "VehicleBounds",
+        "InsideTruckNavBounds",
+    };
 
-    // In the base game, a lot of raycasts fail because they hit the player rigidbody. This fixes that.
-    public static bool RaycastSkipPlayer(Ray ray, out RaycastHit sprayHit, float _distance, int layerMask, QueryTriggerInteraction _queryTriggerInteraction, SprayPaintItem __instance) {
+    // In the base game, a lot of raycasts fail because they hit the player rigidbody.
+    // (particularly when spraying the floor while moving backwards)
+    // This fixes that.
+    public static bool RaycastCustom(Ray ray, out RaycastHit sprayHit, float _distance, int layerMask, QueryTriggerInteraction queryTriggerInteraction, SprayPaintItem __instance) {
         var playerObject = __instance.playerHeldBy?.gameObject;
         if (playerObject == null) {
             Plugin.log?.LogWarning("Player GameObject is null");
@@ -148,13 +163,27 @@ internal class Patches {
         bool result = false;
         RaycastHit sprayHitOut = default;
         float hitDistance = SessionData.Range + 1f;
-        foreach (var hit in Physics.RaycastAll(ray, SessionData.Range, layerMask, QueryTriggerInteraction.Ignore)) {
-            if (playerObject == null || !hit.transform.IsChildOf(playerObject.transform)) {
-                if (hit.distance < hitDistance) {
-                    hitDistance = hit.distance;
-                    sprayHitOut = hit;
-                    result = true;
-                }
+        int companyCruiserLayers = (1 << 9 | 1 << 30);
+        foreach (var hit in Physics.RaycastAll(ray, SessionData.Range, layerMask | companyCruiserLayers, queryTriggerInteraction)) {
+            var layer = 1 << hit.collider.gameObject.layer;
+            if (playerObject != null && hit.transform.IsChildOf(playerObject.transform)) { continue; }
+            if ((layer & layerMask) == 0) {
+                // Make an exception for certain colliders on the Company Cruiser
+                if ((layer & companyCruiserLayers) == 0) { continue; }
+                var cruiser = hit.collider.gameObject.transform.GetAncestors().FirstOrDefault((go) => go.name.StartsWith("CompanyCruiser"));
+                if (cruiser == null) { continue; }
+                var path = hit.collider.gameObject.transform.GetPath(relativeTo: cruiser);
+                if (CompanyCruiserColliderBlacklist.Contains(path)) { continue; }
+            }
+
+            if (hit.collider.isTrigger) {
+                if (hit.collider.name.Contains("Trigger")) { continue; }
+            }
+
+            if (hit.distance < hitDistance) {
+                hitDistance = hit.distance;
+                sprayHitOut = hit;
+                result = true;
             }
         }
         sprayHit = sprayHitOut;
@@ -162,7 +191,7 @@ internal class Patches {
     }
 
     static MethodInfo physicsRaycast = typeof(Physics).GetMethod(nameof(Physics.Raycast), new[] { typeof(Ray), typeof(RaycastHit).MakeByRefType(), typeof(float), typeof(int), typeof(QueryTriggerInteraction) });
-    static MethodInfo raycastSkipPlayer = typeof(Patches).GetMethod(nameof(RaycastSkipPlayer));
+    static MethodInfo raycastCustom = typeof(Patches).GetMethod(nameof(RaycastCustom));
 
     
     [HarmonyReversePatch]
@@ -187,7 +216,7 @@ internal class Patches {
                 foundRaycastCall = true;
                 // Replace the call to Physics.Raycast
                 yield return new CodeInstruction(OpCodes.Ldarg_0); // pass instance as extra parameter
-                yield return new CodeInstruction(OpCodes.Call, raycastSkipPlayer);
+                yield return new CodeInstruction(OpCodes.Call, raycastCustom);
             } else {
                 yield return instruction;
             }
@@ -254,9 +283,8 @@ internal class Patches {
                     foundRaycastCall = true;
                     // Replace the call to Physics.Raycast
                     yield return new CodeInstruction(OpCodes.Ldarg_0); // pass instance as extra parameter
-                    yield return new CodeInstruction(OpCodes.Call, raycastSkipPlayer);
-                }
-                else {
+                    yield return new CodeInstruction(OpCodes.Call, raycastCustom);
+                } else {
                     yield return instruction;
                 }
             }
@@ -323,8 +351,8 @@ internal class Patches {
 
             #if DEBUG
             gameObject.name = $"SprayDecal_{SprayPaintItem.sprayPaintDecalsIndex}";
-            Plugin.log.LogInfo($"{gameObject.name} hit: {sprayHit.collider.gameObject.transform.GetPath()}");
-            Plugin.log.LogInfo($"{gameObject.name} added to {gameObject.transform.parent.name} at{gameObject.transform.position}");
+            Plugin.log.LogInfo($"{gameObject.name} hit collider: {sprayHit.collider.gameObject.transform.GetPath()} (isTrigger: {sprayHit.collider.isTrigger}), tag: {sprayHit.collider.tag}, layer: {sprayHit.collider.gameObject.layer}");
+            Plugin.log.LogInfo($"{gameObject.name} added to {gameObject.transform.parent.name} at {gameObject.transform.position}");
             #endif
 
         }

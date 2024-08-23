@@ -130,7 +130,7 @@ public class SprayPaintItemExt: MonoBehaviour {
             var sprayPos = instance.playerHeldBy.gameplayCamera.transform.position;
             var sprayRot = instance.playerHeldBy.gameplayCamera.transform.forward;
             Ray ray = new Ray(sprayPos, sprayRot);
-            if (Patches.RaycastSkipPlayer(ray, out var sprayHit, SessionData.Range, net.sprayPaintMask, QueryTriggerInteraction.Collide, instance)) {
+            if (Patches.RaycastCustom(ray, out var sprayHit, SessionData.Range, net.sprayPaintMask, QueryTriggerInteraction.Collide, instance)) {
                 Patches.PositionSprayPaint(instance, previewDecal.gameObject, sprayHit);
             }
         } else {
