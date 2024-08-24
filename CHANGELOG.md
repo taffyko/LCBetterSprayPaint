@@ -1,3 +1,11 @@
+# 2.0.5
+(Targeting v62)
+- Updated for the latest version of the game
+- Various bug-fixes
+- Fixes conflict with the Weed Killer item
+- Adds the ability to paint the Company Cruiser
+- Adds an optional preview projection indicating where spray paint will fall
+
 # 2.0.4
 - Fixes an issue that resulted in an excess of error logs in the console
 

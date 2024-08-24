@@ -29,5 +29,7 @@ You can now control the **size** of your spray paint (default keys: `+` and `-` 
 - Shaking the can is more effective (configurable by host)
 - Reduced sound effect volume (configurable)
 - Increased draw distance (configurable)
+- A paint placement preview projection is shown, allowing you to see where you're painting and draw easily (configurable)
 - Spray paint on a moon is now properly cleaned up after each round
+- Makes the Company Cruiser paintable.
 - NOTE: Config can be changed mid-game using a mod like [LethalConfig](https://thunderstore.io/c/lethal-company/p/AinaVT/LethalConfig/) and will take effect instantly, no restart needed!

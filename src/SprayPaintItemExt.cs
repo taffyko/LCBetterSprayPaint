@@ -13,17 +13,20 @@ public class SprayPaintItemExt: MonoBehaviour {
 
     List<Action> cleanupActions = new List<Action>();
     
+    public bool ItemActive() => net.HeldByLocalPlayer && net.InActiveSlot && Patches.CanUseItem(instance.playerHeldBy);
+    
     public void Awake() {
         instance = GetComponent<SprayPaintItem>();
         net = instance.NetExt();
 
-        var go = GameObject.Instantiate(instance.sprayPaintPrefab);
+        var go = UnityEngine.Object.Instantiate(instance.sprayPaintPrefab);
+        previewDecal = go.GetComponent<DecalProjector>();
+        previewDecal.material = new Material(net.baseDecalMaterial);
+        previewDecal.enabled = true;
         go.name = "PreviewDecal";
         go.SetActive(true);
-        previewDecal = go.GetComponent<DecalProjector>();
-        previewDecal.enabled = true;
         
-        var actions = new ActionSubscriptionBuilder(cleanupActions, () => net.HeldByLocalPlayer && net.InActiveSlot && Patches.CanUseItem(instance.playerHeldBy));
+        var actions = new ActionSubscriptionBuilder(cleanupActions, () => ItemActive());
         actions.Subscribe(
             Plugin.inputActions.SprayPaintEraseModifier,
             onStart: delegate {
@@ -125,20 +128,35 @@ public class SprayPaintItemExt: MonoBehaviour {
         );
     }
     
+    
+    float previewFadeFactor = 1f;
+    Vector3 previewOriginalScale = Vector3.oneVector;
+    
     public void Update() {
-        if (instance.playerHeldBy != null && instance.playerHeldBy.IsLocalPlayer()) {
+        var active = false;
+        if (ItemActive()) {
             var sprayPos = instance.playerHeldBy.gameplayCamera.transform.position;
             var sprayRot = instance.playerHeldBy.gameplayCamera.transform.forward;
             Ray ray = new Ray(sprayPos, sprayRot);
             if (Patches.RaycastCustom(ray, out var sprayHit, SessionData.Range, net.sprayPaintMask, QueryTriggerInteraction.Collide, instance)) {
-                Patches.PositionSprayPaint(instance, previewDecal.gameObject, sprayHit);
+                Patches.PositionSprayPaint(instance, previewDecal.gameObject, sprayHit, setColor: false);
+                previewOriginalScale = previewDecal.transform.localScale;
+                active = true;
             }
-        } else {
-            previewDecal.enabled = false;
         }
+        var c = net.CurrentColor;
+        var factor = (Mathf.Sin(Time.timeSinceLevelLoad * 6f) + 1f) * 0.2f + 0.2f;
+        previewFadeFactor = Utils.Lexp(previewFadeFactor, active ? 1f : 0f, 15f * Time.deltaTime);
+        previewDecal.material.color = new Color(
+            Mathf.Lerp(c.r, Math.Min(c.r + 0.35f, 1f), factor),
+            Mathf.Lerp(c.g, Math.Min(c.g + 0.35f, 1f), factor),
+            Mathf.Lerp(c.b, Math.Min(c.b + 0.35f, 1f), factor),
+            Mathf.Clamp(Plugin.SprayPreviewOpacity, 0f, 1f) * previewFadeFactor
+        );
+        previewDecal.transform.localScale = previewOriginalScale * previewFadeFactor;
     }
     
-    public void Destroy() {
+    public void OnDestroy() {
         foreach (var a in cleanupActions) { a(); }
         Destroy(previewDecal);
     }

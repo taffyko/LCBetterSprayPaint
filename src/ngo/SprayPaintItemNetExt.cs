@@ -11,7 +11,7 @@ namespace BetterSprayPaint.Ngo;
 
 public class SprayPaintItemNetExt: NetworkBehaviour {
     SprayPaintItem instance => GetComponent<SprayPaintItem>();
-    public bool HeldByLocalPlayer => instance.playerHeldBy.IsLocalPlayer();
+    public bool HeldByLocalPlayer => instance.playerHeldBy.IsLocalPlayer() && instance.playerHeldBy.ItemSlots.Any(item => item == instance);
     public bool InActiveSlot => instance.playerHeldBy != null && instance.playerHeldBy.ItemSlots[instance.playerHeldBy.currentItemSlot] == instance;
     static SessionData sessionData => SessionData.instance!;
 

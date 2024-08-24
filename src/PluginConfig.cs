@@ -17,6 +17,7 @@ public partial class Plugin {
     public static bool ShorterShakeAnimation { get; private set; }
     public static int MaxSprayPaintDecals { get; private set; }
     public static float DrawDistance { get; private set; }
+    public static float SprayPreviewOpacity { get; private set; }
 
     void ConfigInit() {
 
@@ -38,7 +39,8 @@ If you enter an invalid value, it will change back to "default" when the game st
         ConfEntry("Client-side", nameof(Volume), .1f, "Volume of spray paint sound effects.", float.TryParse, vanillaValue: 1.0f);
         ConfEntry("Client-side", nameof(ShorterShakeAnimation), true, "Whether to shorten the can-shaking animation.", bool.TryParse);
         ConfEntry("Client-side", nameof(MaxSprayPaintDecals), 4000, "The maximum amount of spray paint decals that can exist at once. When the limit is reached, spray paint decals will start to disappear, starting with the oldest.", int.TryParse, vanillaValue: 1000);
-        ConfEntry("Client-side", nameof(DrawDistance), 35.0f, "The maximum distance from which spray paint decals can be seen (Only applies to new spray paint drawn after the setting was changed, if changed mid-game)", float.TryParse, vanillaValue: 20.0f);
+        ConfEntry("Client-side", nameof(DrawDistance), 35.0f, "The maximum distance from which spray paint decals can be seen (Only applies to new spray paint drawn after the setting was changed, if changed mid-game).", float.TryParse, vanillaValue: 20.0f);
+        ConfEntry("Client-side", nameof(SprayPreviewOpacity), 0.5f, "Opacity of the preview highlighting where spray paint will land when sprayed. Set to 0 to disable the preview altogether.", float.TryParse);
     }
 
     delegate bool ParseConfigValue<T>(string input, out T output);

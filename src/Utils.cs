@@ -60,4 +60,8 @@ public static class Utils {
             networkObject.ChildNetworkBehaviours.Add(networkBehaviour);
         networkBehaviour.UpdateNetworkProperties();
     }
+
+    public static float Lexp(float a, float b, float t) {
+        return a + (b - a) * (1.0f - Mathf.Exp(-t));
+    }
 }

@@ -57,11 +57,8 @@ internal class Patches {
         }
 
         if (c.HeldByLocalPlayer) {
-            var p = __instance.playerHeldBy.NetExt();
-
             c.IsErasing = Plugin.inputActions.SprayPaintEraseModifier!.IsPressed() || Plugin.inputActions.SprayPaintErase!.IsPressed();
         }
-
 
         if (___isSpraying && (___sprayCanTank <= 0f || ___sprayCanShakeMeter <= 0f))
         {
@@ -163,7 +160,7 @@ internal class Patches {
         bool result = false;
         RaycastHit sprayHitOut = default;
         float hitDistance = SessionData.Range + 1f;
-        int companyCruiserLayers = (1 << 9 | 1 << 30);
+        int companyCruiserLayers = 1 << 9 | 1 << 30;
         foreach (var hit in Physics.RaycastAll(ray, SessionData.Range, layerMask | companyCruiserLayers, queryTriggerInteraction)) {
             var layer = 1 << hit.collider.gameObject.layer;
             if (playerObject != null && hit.transform.IsChildOf(playerObject.transform)) { continue; }
@@ -298,7 +295,7 @@ internal class Patches {
     [HarmonyPatch(typeof(SprayPaintItem), "PlayCanEmptyEffect")]
     public static void PlayCanEmptyEffect(object instance, bool isEmpty) { throw new NotImplementedException("stub"); }
     
-    public static void PositionSprayPaint(SprayPaintItem instance, GameObject gameObject, RaycastHit sprayHit) {
+    public static void PositionSprayPaint(SprayPaintItem instance, GameObject gameObject, RaycastHit sprayHit, bool setColor = true) {
         // Use the raycast normal to orient the decal so that decals are no longer distorted when spraying at an angle
         gameObject.transform.forward = -sprayHit.normal;
         gameObject.transform.position = sprayHit.point;
@@ -325,7 +322,7 @@ internal class Patches {
 
         projector.drawDistance = Plugin.DrawDistance;
 
-        projector.material = c.DecalMaterialForColor(c.CurrentColor);
+        if (setColor) { projector.material = c.DecalMaterialForColor(c.CurrentColor); }
 
         projector.scaleMode = DecalScaleMode.InheritFromHierarchy;
         gameObject.transform.localScale = new Vector3(1f, 1f, 1f);

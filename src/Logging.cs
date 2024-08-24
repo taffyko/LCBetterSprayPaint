@@ -69,7 +69,7 @@ internal class QuietLogSource : ILogSource, IDisposable  {
         }
         innerLog.Log(level, addStackTrace ? AddStackTrace(data) : data);
         if (logsSuppressed > lastReportedLogsSuppressed) {
-            innerLog.LogInfo($"{logsSuppressed - lastReportedLogsSuppressed} logs suppressed");
+            innerLog.LogInfo($"{logsSuppressed - lastReportedLogsSuppressed} duplicate logs suppressed");
             lastReportedLogsSuppressed = logsSuppressed;
         }
     }
