@@ -1,3 +1,6 @@
+# 2.0.6
+- Hotfix
+
 # 2.0.5
 (Targeting v62)
 - Updated for the latest version of the game

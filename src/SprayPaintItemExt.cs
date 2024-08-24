@@ -21,6 +21,7 @@ public class SprayPaintItemExt: MonoBehaviour {
 
         var go = UnityEngine.Object.Instantiate(instance.sprayPaintPrefab);
         previewDecal = go.GetComponent<DecalProjector>();
+        GameObject.DontDestroyOnLoad(go);
         previewDecal.material = new Material(net.baseDecalMaterial);
         previewDecal.enabled = true;
         go.name = "PreviewDecal";
@@ -147,13 +148,15 @@ public class SprayPaintItemExt: MonoBehaviour {
         var c = net.CurrentColor;
         var factor = (Mathf.Sin(Time.timeSinceLevelLoad * 6f) + 1f) * 0.2f + 0.2f;
         previewFadeFactor = Utils.Lexp(previewFadeFactor, active ? 1f : 0f, 15f * Time.deltaTime);
-        previewDecal.material.color = new Color(
-            Mathf.Lerp(c.r, Math.Min(c.r + 0.35f, 1f), factor),
-            Mathf.Lerp(c.g, Math.Min(c.g + 0.35f, 1f), factor),
-            Mathf.Lerp(c.b, Math.Min(c.b + 0.35f, 1f), factor),
-            Mathf.Clamp(Plugin.SprayPreviewOpacity, 0f, 1f) * previewFadeFactor
-        );
-        previewDecal.transform.localScale = previewOriginalScale * previewFadeFactor;
+        if (previewDecal?.gameObject != null && previewDecal.material != null) {
+            previewDecal.material.color = new Color(
+                Mathf.Lerp(c.r, Math.Min(c.r + 0.35f, 1f), factor),
+                Mathf.Lerp(c.g, Math.Min(c.g + 0.35f, 1f), factor),
+                Mathf.Lerp(c.b, Math.Min(c.b + 0.35f, 1f), factor),
+                Mathf.Clamp(Plugin.SprayPreviewOpacity, 0f, 1f) * previewFadeFactor
+            );
+            previewDecal.transform.localScale = previewOriginalScale * previewFadeFactor;
+        }
     }
     
     public void OnDestroy() {
