@@ -148,7 +148,7 @@ public class SprayPaintItemExt: MonoBehaviour {
         var c = net.CurrentColor;
         var factor = (Mathf.Sin(Time.timeSinceLevelLoad * 6f) + 1f) * 0.2f + 0.2f;
         previewFadeFactor = Utils.Lexp(previewFadeFactor, active ? 1f : 0f, 15f * Time.deltaTime);
-        if (previewDecal?.gameObject != null && previewDecal.material != null) {
+        if (previewDecal != null && previewDecal.gameObject != null && previewDecal.material != null) {
             previewDecal.material.color = new Color(
                 Mathf.Lerp(c.r, Math.Min(c.r + 0.35f, 1f), factor),
                 Mathf.Lerp(c.g, Math.Min(c.g + 0.35f, 1f), factor),
