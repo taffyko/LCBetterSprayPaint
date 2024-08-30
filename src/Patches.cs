@@ -153,10 +153,14 @@ internal class Patches {
     // (particularly when spraying the floor while moving backwards)
     // This fixes that.
     public static bool RaycastCustom(Ray ray, out RaycastHit sprayHit, float _distance, int layerMask, QueryTriggerInteraction queryTriggerInteraction, SprayPaintItem __instance) {
-        var playerObject = __instance.playerHeldBy?.gameObject;
-        if (playerObject == null) {
+        var player = __instance.playerHeldBy;
+        GameObject? playerObject = null;
+        if (player != null && player.gameObject != null) {
+            playerObject = player.gameObject;
+        } else {
             Plugin.log?.LogWarning("Player GameObject is null");
         }
+
         bool result = false;
         RaycastHit sprayHitOut = default;
         float hitDistance = SessionData.Range + 1f;

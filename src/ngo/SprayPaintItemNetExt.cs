@@ -48,7 +48,19 @@ public class SprayPaintItemNetExt: NetworkBehaviour {
                 Plugin.log.LogWarning($"Tried to set {nameof(PaintSize)} but {nameof(SprayPaintItem.playerHeldBy)} is null");
             }
         }
-        get { return instance.playerHeldBy?.NetExt()?.PaintSize.Value ?? 1.0f; }
+        get {
+            PlayerNetExt? c = null;
+
+            if (instance.playerHeldBy != null) {
+                c = instance.playerHeldBy.NetExt();
+            }
+
+            if (c == null) {
+                return 1;
+            }
+
+            return c.PaintSize.Value;
+        }
     }
 
     public NetworkVariable<float> ShakeMeter = new NetworkVariable<float>(1.0f);
