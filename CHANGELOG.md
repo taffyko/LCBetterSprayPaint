@@ -1,3 +1,7 @@
+# 2.0.7
+- Fixes an issue that resulted in an excess of error logs in the console
+- Updated config defaults to reflect changes to the base game
+
 # 2.0.6
 - Hotfix
 

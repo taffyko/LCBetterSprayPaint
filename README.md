@@ -1,6 +1,10 @@
 # Features & Usage
 NOTE: All players must have the same version of the mod installed to play together.
 
+NOTE: In the unmodded base game, not all geometry is fully paintable.
+I've done what I can to make more of the game paintable, but there's no way to reliably fix this everywhere.
+**The placement preview projection will not be displayed on unpaintable surfaces.**
+
 ## Improved painting & eraser
 - Several changes/bugfixes that make spraypaint work more consistently, look better, and feel better to use
 	- Certain spots in levels may still be unpaintable (due to invisible colliders). It remains to be seen if this can be fixed in the future.

@@ -31,11 +31,11 @@ If you enter an invalid value, it will change back to "default" when the game st
         ConfEntry("General", nameof(AllowErasing), true, "When enabled, players can erase spray paint. (Note: With default controls, erasing is done by holding E and LMB at the same time)", bool.TryParse, hostControlled: true);
         ConfEntry("General", nameof(AllowColorChange), true, "When enabled, players can control the color of their spray paint.", bool.TryParse, hostControlled: true);
         ConfEntry("General", nameof(InfiniteTank), true, "When enabled, the spray can has infinite uses.", bool.TryParse, hostControlled: true);
-        ConfEntry("General", nameof(TankCapacity), 25.0f, "Amount of time (in seconds) that each can may spray for before running out (Has no effect when InfiniteTank is enabled.)", float.TryParse, hostControlled: true, vanillaValue: 25.0f);
+        ConfEntry("General", nameof(TankCapacity), 30.0f, "Amount of time (in seconds) that each can may spray for before running out (Has no effect when InfiniteTank is enabled.)", float.TryParse, hostControlled: true, vanillaValue: 30.0f);
         ConfEntry("General", nameof(ShakeEfficiency), .30f, "The percentage to restore on the \"shake meter\" each time the can is shaken.", float.TryParse, hostControlled: true, vanillaValue: 0.15f);
         ConfEntry("General", nameof(ShakingNotNeeded), false, "When enabled, the can never needs to be shaken.", bool.TryParse, hostControlled: true);
         ConfEntry("General", nameof(MaxSize), 2.0f, "The maximum size of spray paint that players are allowed to create.", float.TryParse, hostControlled: true);
-        ConfEntry("General", nameof(Range), 6.0f, "The maximum distance that players can spray.", float.TryParse, hostControlled: true, vanillaValue: 4f);
+        ConfEntry("General", nameof(Range), 7.0f, "The maximum distance that players can spray.", float.TryParse, hostControlled: true, vanillaValue: 7f);
         ConfEntry("Client-side", nameof(Volume), .1f, "Volume of spray paint sound effects.", float.TryParse, vanillaValue: 1.0f);
         ConfEntry("Client-side", nameof(ShorterShakeAnimation), true, "Whether to shorten the can-shaking animation.", bool.TryParse);
         ConfEntry("Client-side", nameof(MaxSprayPaintDecals), 4000, "The maximum amount of spray paint decals that can exist at once. When the limit is reached, spray paint decals will start to disappear, starting with the oldest.", int.TryParse, vanillaValue: 1000);
