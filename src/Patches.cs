@@ -158,7 +158,7 @@ internal class Patches {
         if (player != null && player.gameObject != null) {
             playerObject = player.gameObject;
         } else {
-            Plugin.log?.LogWarning("Player GameObject is null");
+            Plugin.log.LogWarning("Player GameObject is null");
         }
 
         bool result = false;
@@ -188,6 +188,15 @@ internal class Patches {
             }
         }
         sprayHit = sprayHitOut;
+
+        if (!SessionData.ClientsCanPaintShip) {
+            bool sprayedByHost = __instance.playerHeldBy != null && __instance.playerHeldBy.isHostPlayerObject;
+            bool parentToShip = sprayHit.collider != null && sprayHit.collider.transform.IsChildOf(StartOfRound.Instance.elevatorTransform) || RoundManager.Instance.mapPropsContainer == null;
+            if (parentToShip && !sprayedByHost) {
+                result = false;
+            }
+        }
+
         return result;
     }
 
@@ -264,6 +273,14 @@ internal class Patches {
             }
         }
     }
+    
+    [HarmonyPatch(typeof(PlayerControllerB), "Update")]
+    [HarmonyPostfix]
+    public static void Player_Update_Postfix(PlayerControllerB __instance) { 
+        if (__instance.IsLocalPlayer()) {
+            Plugin.UpdateSessionData();
+        }
+    }
 
     [HarmonyReversePatch]
     [HarmonyPatch(typeof(PlayerControllerB), "CanUseItem")]
@@ -310,7 +327,8 @@ internal class Patches {
         // - This parenting implementation doesn't have that issue.
         if (sprayHit.collider.gameObject.layer == 11 || sprayHit.collider.gameObject.layer == 8 || sprayHit.collider.gameObject.layer == 0)
         {
-            if (sprayHit.collider.transform.IsChildOf(StartOfRound.Instance.elevatorTransform) || RoundManager.Instance.mapPropsContainer == null) {
+            bool parentToShip = sprayHit.collider.transform.IsChildOf(StartOfRound.Instance.elevatorTransform) || RoundManager.Instance.mapPropsContainer == null;
+            if (parentToShip) {
                 gameObject.transform.SetParent(StartOfRound.Instance.elevatorTransform, true);
             } else {
                 gameObject.transform.SetParent(RoundManager.Instance.mapPropsContainer.transform, true);

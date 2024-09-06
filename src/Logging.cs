@@ -18,6 +18,12 @@ internal class QuietLogSource : ILogSource, IDisposable  {
     int logsSuppressed = 0;
     int lastReportedLogsSuppressed = 0;
 
+    #if DEBUG
+    bool suppressLogs = false;
+    #else
+    bool suppressLogs = true;
+    #endif
+
     /// Minimum number of repeat logs that must be encountered before suppressing
     const int minimumBeforeSuppressal = 5;
 
@@ -59,7 +65,9 @@ internal class QuietLogSource : ILogSource, IDisposable  {
                     recentLogs[str] = (val.Item1, val.Item2 + 1);
                     if (val.Item2 >= minimumBeforeSuppressal) {
                         ++logsSuppressed;
-                        return;
+                        if (suppressLogs) {
+                            return;
+                        }
                     }
                 }
             } else {
@@ -68,7 +76,7 @@ internal class QuietLogSource : ILogSource, IDisposable  {
             }
         }
         innerLog.Log(level, addStackTrace ? AddStackTrace(data) : data);
-        if (logsSuppressed > lastReportedLogsSuppressed) {
+        if (suppressLogs && logsSuppressed > lastReportedLogsSuppressed) {
             innerLog.LogInfo($"{logsSuppressed - lastReportedLogsSuppressed} duplicate logs suppressed");
             lastReportedLogsSuppressed = logsSuppressed;
         }

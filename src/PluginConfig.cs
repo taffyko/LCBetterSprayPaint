@@ -18,6 +18,7 @@ public partial class Plugin {
     public static int MaxSprayPaintDecals { get; private set; }
     public static float DrawDistance { get; private set; }
     public static float SprayPreviewOpacity { get; private set; }
+    public static bool ClientsCanPaintShip { get; private set; }
 
     void ConfigInit() {
 
@@ -36,6 +37,7 @@ If you enter an invalid value, it will change back to "default" when the game st
         ConfEntry("General", nameof(ShakingNotNeeded), false, "When enabled, the can never needs to be shaken.", bool.TryParse, hostControlled: true);
         ConfEntry("General", nameof(MaxSize), 2.0f, "The maximum size of spray paint that players are allowed to create.", float.TryParse, hostControlled: true);
         ConfEntry("General", nameof(Range), 7.0f, "The maximum distance that players can spray.", float.TryParse, hostControlled: true, vanillaValue: 7f);
+        ConfEntry("General", nameof(ClientsCanPaintShip), true, "When disabled, only the host can paint on or within the ship.", bool.TryParse, hostControlled: true);
         ConfEntry("Client-side", nameof(Volume), .1f, "Volume of spray paint sound effects.", float.TryParse, vanillaValue: 1.0f);
         ConfEntry("Client-side", nameof(ShorterShakeAnimation), true, "Whether to shorten the can-shaking animation.", bool.TryParse);
         ConfEntry("Client-side", nameof(MaxSprayPaintDecals), 4000, "The maximum amount of spray paint decals that can exist at once. When the limit is reached, spray paint decals will start to disappear, starting with the oldest.", int.TryParse, vanillaValue: 1000);

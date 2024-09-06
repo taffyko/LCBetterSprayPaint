@@ -111,9 +111,13 @@ static class NgoHelper {
         var custom = typeof(TCustomBehaviour);
         var native = typeof(TNativeBehaviour);
         BehaviourBindings.Add((custom, native, excluded));
-        
-        MethodBase method = AccessTools.Method(native, "Awake");
-        if (method != null) {
+
+        MethodInfo? methodInfo = null;
+        try {
+            methodInfo = native.GetMethod("Awake", BindingFlags.Instance);
+        } catch (Exception) {}
+        if (methodInfo != null) {
+            MethodBase method = AccessTools.Method(native, "Awake");
             var hMethod = new HarmonyMethod(typeof(NgoHelper), nameof(BindBehaviourOnAwake));
             Plugin.harmony.Patch(method, postfix: hMethod);
         }

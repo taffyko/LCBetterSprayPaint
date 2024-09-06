@@ -61,4 +61,19 @@ public partial class Plugin : BaseUnityPlugin {
         log?.LogInfo($"Unloading {modGUID}");
         #endif
     }
+
+    public static void UpdateSessionData() {
+        var sessionData = SessionData.instance;
+        if (sessionData != null && sessionData.IsServer) {
+            sessionData.allowErasing.Value = Plugin.AllowErasing;
+            sessionData.allowColorChange.Value = Plugin.AllowColorChange;
+            sessionData.infiniteTank.Value = Plugin.InfiniteTank;
+            sessionData.tankCapacity.Value = Plugin.TankCapacity;
+            sessionData.shakeEfficiency.Value = Plugin.ShakeEfficiency;
+            sessionData.shakingNotNeeded.Value = Plugin.ShakingNotNeeded;
+            sessionData.range.Value = Plugin.Range;
+            sessionData.maxSize.Value = Plugin.MaxSize;
+            sessionData.clientsCanPaintShip.Value = Plugin.ClientsCanPaintShip;
+        }
+    }
 }
