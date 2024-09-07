@@ -134,6 +134,10 @@ public class SprayPaintItemExt: MonoBehaviour {
     Vector3 previewOriginalScale = Vector3.oneVector;
     
     public void Update() {
+        if (previewDecal == null || previewDecal.gameObject == null || previewDecal.material == null) {
+            return;
+        }
+
         var active = false;
         if (ItemActive()) {
             var sprayPos = instance.playerHeldBy.gameplayCamera.transform.position;
@@ -145,18 +149,17 @@ public class SprayPaintItemExt: MonoBehaviour {
                 active = true;
             }
         }
+
         var c = net.CurrentColor;
         var factor = (Mathf.Sin(Time.timeSinceLevelLoad * 6f) + 1f) * 0.2f + 0.2f;
         previewFadeFactor = Utils.Lexp(previewFadeFactor, active ? 1f : 0f, 15f * Time.deltaTime);
-        if (previewDecal != null && previewDecal.gameObject != null && previewDecal.material != null) {
-            previewDecal.material.color = new Color(
-                Mathf.Lerp(c.r, Math.Min(c.r + 0.35f, 1f), factor),
-                Mathf.Lerp(c.g, Math.Min(c.g + 0.35f, 1f), factor),
-                Mathf.Lerp(c.b, Math.Min(c.b + 0.35f, 1f), factor),
-                Mathf.Clamp(Plugin.SprayPreviewOpacity, 0f, 1f) * previewFadeFactor
-            );
-            previewDecal.transform.localScale = previewOriginalScale * previewFadeFactor;
-        }
+        previewDecal.material.color = new Color(
+            Mathf.Lerp(c.r, Math.Min(c.r + 0.35f, 1f), factor),
+            Mathf.Lerp(c.g, Math.Min(c.g + 0.35f, 1f), factor),
+            Mathf.Lerp(c.b, Math.Min(c.b + 0.35f, 1f), factor),
+            Mathf.Clamp(Plugin.SprayPreviewOpacity, 0f, 1f) * previewFadeFactor
+        );
+        previewDecal.transform.localScale = previewOriginalScale * previewFadeFactor;
     }
     
     public void OnDestroy() {
