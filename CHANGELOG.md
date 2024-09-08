@@ -1,6 +1,9 @@
+# 2.0.9
+- Minor bugfix
+
 # 2.0.8
 (Targeting v62/v64)
-- Adds a new setting, `ClientsCanPaint`, which can be disabled by the host to prevent other players from painting inside/on the ship.
+- Adds a new setting, `ClientsCanPaintShip`, which can be disabled by the host to prevent other players from painting inside/on the ship.
 
 # 2.0.7
 - Fixes an issue that resulted in an excess of error logs in the console

@@ -1,8 +1,8 @@
 # Features & Usage
 NOTE: All players must have the same version of the mod installed to play together.
 
-NOTE: In the unmodded base game, not all geometry is fully paintable.
-I've done what I can to make more of the game paintable, but there's no way to reliably fix this everywhere.
+NOTE: In the unmodded base game, not all geometry is fully paintable.  
+I've done what I can to make more of the game paintable, but there's no way to reliably fix this everywhere.  
 **The placement preview projection will not be displayed on unpaintable surfaces.**
 
 ## Improved painting & eraser
