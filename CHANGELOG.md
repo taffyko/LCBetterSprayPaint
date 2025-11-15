@@ -1,3 +1,8 @@
+# 2.1.0
+(Targeting v73)
+- A little late to the party, but the mod has been updated for v73!
+- Thanks ucvu for contributing!
+
 # 2.0.9
 - Minor bugfix
 

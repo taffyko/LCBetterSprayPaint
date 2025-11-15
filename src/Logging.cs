@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using BepInEx.Logging;
 
+/// Wrapper around ManualLogSource that suppresses repeated logs within a short timeframe
+/// to help reduce log spam when things unexpectedly break due to future updates/mod conflicts
 internal class QuietLogSource : ILogSource, IDisposable  {
     ManualLogSource innerLog;
     public string SourceName { get; }
@@ -97,6 +99,7 @@ internal class QuietLogSource : ILogSource, IDisposable  {
         Log(LogLevel.Warning, data, addStackTrace);
     }
 
+    /// Helper for local testing only (making do until I can get proper debugging support working on this version of Unity)
     public void LogLoud(string data)
     {
         for (int i = 0; i < 25; ++i) {
